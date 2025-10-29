@@ -11,7 +11,7 @@
 
 **TradingView**：
 
-- **网址**：https://www.tradingview.com
+- **网址**：<https://www.tradingview.com>
 - **功能**：
   - 实时 K 线图和技术指标
   - 布林带、ATR、RSI、MACD 等指标
@@ -32,12 +32,14 @@
 **网格参数计算器**：
 
 可以用于快速计算：
+
 - 网格间距
 - 网格层数
 - 单层资金需求
 - 盈亏平衡点
 
 **推荐搜索**：
+
 - "网格交易计算器"
 - "Grid Trading Calculator"
 
@@ -69,6 +71,7 @@ atr = calculate_atr(data['high'], data['low'], data['close'])
 **Excel 分析模板**：
 
 可以创建 Excel 表格用于：
+
 - 参数计算
 - 风险分析
 - 收益预估
@@ -93,7 +96,7 @@ atr = calculate_atr(data['high'], data['low'], data['close'])
 
 **免费资源**：
 
-- **Investopedia**：https://www.investopedia.com
+- **Investopedia**：<https://www.investopedia.com>
   - 技术指标详解
   - 交易策略教程
 - **Babypips**：适合外汇交易者
