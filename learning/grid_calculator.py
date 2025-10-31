@@ -47,6 +47,7 @@
   --max-price, -M: 最高价（必需）
   --grids, -g: 网格数量（必需）
   --groups, -G: 分组数量（可选），必须是网格数量的因数
+  --output, -o: 输出文件路径（可选），如果未指定则根据命令行参数自动生成默认文件名
 
 示例：
   # 计算 BTC-USDT 交易对，资金 10000 USDT，价格区间 1000-2000 USDT，10 个网格
@@ -61,13 +62,24 @@
   # 计算 ETH-USDT 交易对，资金 5000 USDT，价格区间 2000-3000 USDT，5 个网格
   python3 grid_calculator.py -p ETH-USDT -c 5000 -m 2000 -M 3000 -g 5
 
+  # 将结果保存到指定文件
+  python3 grid_calculator.py -p BTC-USDT -c 10000 -m 1000 -M 2000 -g 10 -o result.md
+
+  # 不指定 output 参数，将自动生成默认文件名
+  # 例如：btc_usdt_capital_10000_min_price_1000_max_price_2000_grids_10.md
+  python3 grid_calculator.py -p BTC-USDT -c 10000 -m 1000 -M 2000 -g 10
+
 输出格式：
 ----------
-脚本会输出以下部分：
+脚本以 Markdown 格式输出以下部分：
 1. 输入参数摘要
 2. 等差数列网格计算结果（价格分布、买入详情、汇总）
 3. 等比数列网格计算结果（价格分布、买入详情、汇总）
 4. 两种网格类型的对比总结
+
+输出格式说明：
+- 所有输出均为 Markdown 格式，可直接保存为 .md 文件
+- 使用 --output/-o 参数可将结果保存到指定文件
 
 注意事项：
 ----------
@@ -333,6 +345,49 @@ def calculate_group_stats(grid_result: GridResult, num_groups: int) -> List[Grou
     return group_stats
 
 
+def generate_default_filename(
+    trading_pair: str,
+    total_capital: float,
+    min_price: float,
+    max_price: float,
+    num_grids: int,
+    num_groups: Optional[int] = None,
+) -> str:
+    """
+    根据命令行参数生成默认文件名
+
+    参数：
+        trading_pair: 交易对
+        total_capital: 资金总额
+        min_price: 最低价
+        max_price: 最高价
+        num_grids: 网格数量
+        num_groups: 分组数量（可选）
+
+    返回：
+        文件名（全小写+下划线格式，扩展名为 .md）
+    """
+    # 将交易对转换为小写并替换连字符为下划线
+    pair_name = trading_pair.lower().replace("-", "_")
+
+    # 构建文件名各部分
+    parts = [
+        pair_name,
+        f"capital_{int(total_capital)}",
+        f"min_price_{int(min_price)}",
+        f"max_price_{int(max_price)}",
+        f"grids_{num_grids}",
+    ]
+
+    # 如果有分组，添加分组信息
+    if num_groups is not None:
+        parts.append(f"groups_{num_groups}")
+
+    # 组合文件名
+    filename = "_".join(parts) + ".md"
+    return filename
+
+
 def format_output(
     trading_pair: str,
     total_capital: float,
@@ -342,9 +397,9 @@ def format_output(
     arithmetic_result: GridResult,
     geometric_result: GridResult,
     num_groups: Optional[int] = None,
-) -> None:
+) -> str:
     """
-    格式化输出结果
+    格式化输出结果为 Markdown 格式
 
     参数：
         trading_pair: 交易对
@@ -355,34 +410,51 @@ def format_output(
         arithmetic_result: 等差数列网格结果
         geometric_result: 等比数列网格结果
         num_groups: 分组数量（可选）
+
+    返回：
+        Markdown 格式的字符串
     """
     base_asset, quote_asset = trading_pair.split("-")
+    lines = []
 
-    print("=" * 80)
-    print("网格交易计算结果")
-    print("=" * 80)
-    print(f"\n交易对: {trading_pair}")
-    print(f"资金总额: {total_capital:,.2f} {quote_asset}")
-    print(f"价格区间: {min_price:,.2f} - {max_price:,.2f} {quote_asset}")
-    print(f"网格数量: {num_grids}")
-    print(f"价格分布点数量: {num_grids + 1}")
+    # 一级标题
+    lines.append("# 网格交易计算结果")
+    lines.append("")
+
+    # 输入参数
+    lines.append("## 输入参数")
+    lines.append("")
+    lines.append(f"- **交易对**: {trading_pair}")
+    lines.append(f"- **资金总额**: {total_capital:,.2f} {quote_asset}")
+    lines.append(f"- **价格区间**: {min_price:,.2f} - {max_price:,.2f} {quote_asset}")
+    lines.append(f"- **网格数量**: {num_grids}")
+    lines.append(f"- **价格分布点数量**: {num_grids + 1}")
     if num_groups is not None:
-        print(f"分组数量: {num_groups}（每组 {num_grids // num_groups} 个网格）")
+        lines.append(f"- **分组数量**: {num_groups}（每组 {num_grids // num_groups} 个网格）")
+    lines.append("")
 
     # 输出等差数列网格结果
-    print("\n" + "=" * 80)
-    print("等差数列网格")
-    print("=" * 80)
-    print(f"\n价格分布点（共 {len(arithmetic_result.price_points)} 个）:")
-    for i, price in enumerate(arithmetic_result.price_points):
-        marker = " (最高价，不含买单)" if i == len(arithmetic_result.price_points) - 1 else ""
-        print(f"  点 {i+1}: {price:,.4f} {quote_asset}{marker}")
+    lines.append("## 等差数列网格")
+    lines.append("")
 
-    print(f"\n买入网格详情（共 {len(arithmetic_result.buy_prices)} 个）:")
-    print(
-        f"{'层级':<8} {'价格 (' + quote_asset + ')':<20} {'投入资金 (' + quote_asset + ')':<25} {'购买量 (' + base_asset + ')':<20} {'收益率 (%)':<15}"
-    )
-    print("-" * 100)
+    # 价格分布点
+    lines.append(f"### 价格分布点（共 {len(arithmetic_result.price_points)} 个）")
+    lines.append("")
+    price_table_rows = []
+    for i, price in enumerate(arithmetic_result.price_points):
+        marker = "（最高价，不含买单）" if i == len(arithmetic_result.price_points) - 1 else ""
+        price_table_rows.append(f"| {i+1} | {price:,.4f} {quote_asset} | {marker} |")
+    lines.append("| 序号 | 价格 | 备注 |")
+    lines.append("|------|------|------|")
+    lines.extend(price_table_rows)
+    lines.append("")
+
+    # 买入网格详情
+    lines.append(f"### 买入网格详情（共 {len(arithmetic_result.buy_prices)} 个）")
+    lines.append("")
+    lines.append(f"| 层级 | 价格 ({quote_asset}) | 投入资金 ({quote_asset}) | 购买量 ({base_asset}) | 收益率 (%) |")
+    lines.append("|------|------|------|------|------|")
+
     total_quote_check = 0
     arithmetic_avg_return = (
         sum(arithmetic_result.grid_returns) / len(arithmetic_result.grid_returns)
@@ -402,18 +474,18 @@ def format_output(
             base = arithmetic_result.base_amounts[i]
             return_pct = arithmetic_result.grid_returns[i]
             total_quote_check += quote
-            print(f"{i+1:<8} {price:>18,.4f} {quote:>23,.4f} {base:>18,.8f} {return_pct:>13,.2f}")
+            lines.append(f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} |")
 
             # 如果是组的最后一个网格，插入分组汇总行
             if (i + 1) % grids_per_group == 0:
                 group_stat = arithmetic_group_stats[group_idx]
-                print(
-                    f"{'第' + str(group_stat.group_number) + '组合计':<8} {'':<20} {group_stat.quote_amount:>23,.4f} {group_stat.base_amount:>18,.8f} {'':<15}"
+                lines.append(
+                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | **{group_stat.base_amount:,.8f}** | |"
                 )
                 group_idx += 1
-                # 如果不是最后一组，添加分隔线
+                # 如果不是最后一组，添加分隔行
                 if group_idx < num_groups:
-                    print("-" * 100)
+                    lines.append("| | | | | |")
     else:
         # 没有分组时，正常输出所有网格
         for i in range(len(arithmetic_result.buy_prices)):
@@ -422,32 +494,45 @@ def format_output(
             base = arithmetic_result.base_amounts[i]
             return_pct = arithmetic_result.grid_returns[i]
             total_quote_check += quote
-            print(f"{i+1:<8} {price:>18,.4f} {quote:>23,.4f} {base:>18,.8f} {return_pct:>13,.2f}")
+            lines.append(f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} |")
 
-    print("-" * 100)
-    print(
-        f"{'合计':<8} {'':<20} {total_quote_check:>23,.4f} {arithmetic_result.total_base_amount:>18,.8f} {arithmetic_avg_return:>13,.2f}"
+    # 合计行
+    lines.append(
+        f"| **合计** | | **{total_quote_check:,.4f}** | **{arithmetic_result.total_base_amount:,.8f}** | **{arithmetic_avg_return:,.2f}** |"
     )
+    lines.append("")
 
-    print(f"\n总购买量: {arithmetic_result.total_base_amount:,.8f} {base_asset}")
-    print(f"总投入资金: {total_quote_check:,.2f} {quote_asset}")
-    print(f"平均价格: {arithmetic_result.average_price:,.4f} {quote_asset}/{base_asset}")
-    print(f"平均单网格收益率: {arithmetic_avg_return:,.2f}%")
+    # 汇总统计
+    lines.append("### 汇总统计")
+    lines.append("")
+    lines.append(f"- **总购买量**: {arithmetic_result.total_base_amount:,.8f} {base_asset}")
+    lines.append(f"- **总投入资金**: {total_quote_check:,.2f} {quote_asset}")
+    lines.append(f"- **平均价格**: {arithmetic_result.average_price:,.4f} {quote_asset}/{base_asset}")
+    lines.append(f"- **平均单网格收益率**: {arithmetic_avg_return:,.2f}%")
+    lines.append("")
 
     # 输出等比数列网格结果
-    print("\n" + "=" * 80)
-    print("等比数列网格")
-    print("=" * 80)
-    print(f"\n价格分布点（共 {len(geometric_result.price_points)} 个）:")
-    for i, price in enumerate(geometric_result.price_points):
-        marker = " (最高价，不含买单)" if i == len(geometric_result.price_points) - 1 else ""
-        print(f"  点 {i+1}: {price:,.4f} {quote_asset}{marker}")
+    lines.append("## 等比数列网格")
+    lines.append("")
 
-    print(f"\n买入网格详情（共 {len(geometric_result.buy_prices)} 个）:")
-    print(
-        f"{'层级':<8} {'价格 (' + quote_asset + ')':<20} {'投入资金 (' + quote_asset + ')':<25} {'购买量 (' + base_asset + ')':<20} {'收益率 (%)':<15}"
-    )
-    print("-" * 100)
+    # 价格分布点
+    lines.append(f"### 价格分布点（共 {len(geometric_result.price_points)} 个）")
+    lines.append("")
+    price_table_rows = []
+    for i, price in enumerate(geometric_result.price_points):
+        marker = "（最高价，不含买单）" if i == len(geometric_result.price_points) - 1 else ""
+        price_table_rows.append(f"| {i+1} | {price:,.4f} {quote_asset} | {marker} |")
+    lines.append("| 序号 | 价格 | 备注 |")
+    lines.append("|------|------|------|")
+    lines.extend(price_table_rows)
+    lines.append("")
+
+    # 买入网格详情
+    lines.append(f"### 买入网格详情（共 {len(geometric_result.buy_prices)} 个）")
+    lines.append("")
+    lines.append(f"| 层级 | 价格 ({quote_asset}) | 投入资金 ({quote_asset}) | 购买量 ({base_asset}) | 收益率 (%) |")
+    lines.append("|------|------|------|------|------|")
+
     total_quote_check = 0
     geometric_avg_return = (
         sum(geometric_result.grid_returns) / len(geometric_result.grid_returns)
@@ -467,18 +552,18 @@ def format_output(
             base = geometric_result.base_amounts[i]
             return_pct = geometric_result.grid_returns[i]
             total_quote_check += quote
-            print(f"{i+1:<8} {price:>18,.4f} {quote:>23,.4f} {base:>18,.8f} {return_pct:>13,.2f}")
+            lines.append(f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} |")
 
             # 如果是组的最后一个网格，插入分组汇总行
             if (i + 1) % grids_per_group == 0:
                 group_stat = geometric_group_stats[group_idx]
-                print(
-                    f"{'第' + str(group_stat.group_number) + '组合计':<8} {'':<20} {group_stat.quote_amount:>23,.4f} {group_stat.base_amount:>18,.8f} {'':<15}"
+                lines.append(
+                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | **{group_stat.base_amount:,.8f}** | |"
                 )
                 group_idx += 1
-                # 如果不是最后一组，添加分隔线
+                # 如果不是最后一组，添加分隔行
                 if group_idx < num_groups:
-                    print("-" * 100)
+                    lines.append("| | | | | |")
     else:
         # 没有分组时，正常输出所有网格
         for i in range(len(geometric_result.buy_prices)):
@@ -487,54 +572,71 @@ def format_output(
             base = geometric_result.base_amounts[i]
             return_pct = geometric_result.grid_returns[i]
             total_quote_check += quote
-            print(f"{i+1:<8} {price:>18,.4f} {quote:>23,.4f} {base:>18,.8f} {return_pct:>13,.2f}")
+            lines.append(f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} |")
 
-    print("-" * 100)
-    print(
-        f"{'合计':<8} {'':<20} {total_quote_check:>23,.4f} {geometric_result.total_base_amount:>18,.8f} {geometric_avg_return:>13,.2f}"
+    # 合计行
+    lines.append(
+        f"| **合计** | | **{total_quote_check:,.4f}** | **{geometric_result.total_base_amount:,.8f}** | **{geometric_avg_return:,.2f}** |"
     )
+    lines.append("")
 
-    print(f"\n总购买量: {geometric_result.total_base_amount:,.8f} {base_asset}")
-    print(f"总投入资金: {total_quote_check:,.2f} {quote_asset}")
-    print(f"平均价格: {geometric_result.average_price:,.4f} {quote_asset}/{base_asset}")
-    print(f"平均单网格收益率: {geometric_avg_return:,.2f}%")
+    # 汇总统计
+    lines.append("### 汇总统计")
+    lines.append("")
+    lines.append(f"- **总购买量**: {geometric_result.total_base_amount:,.8f} {base_asset}")
+    lines.append(f"- **总投入资金**: {total_quote_check:,.2f} {quote_asset}")
+    lines.append(f"- **平均价格**: {geometric_result.average_price:,.4f} {quote_asset}/{base_asset}")
+    lines.append(f"- **平均单网格收益率**: {geometric_avg_return:,.2f}%")
+    lines.append("")
 
     # 对比总结
-    print("\n" + "=" * 80)
-    print("对比总结")
-    print("=" * 80)
+    lines.append("## 对比总结")
+    lines.append("")
     advantage_pct = (
         (geometric_result.total_base_amount - arithmetic_result.total_base_amount)
         / arithmetic_result.total_base_amount
         * 100
     )
-    print(f"\n等差数列总购买量: {arithmetic_result.total_base_amount:,.8f} {base_asset}")
-    print(f"等比数列总购买量: {geometric_result.total_base_amount:,.8f} {base_asset}")
+
+    lines.append("### 购买量对比")
+    lines.append("")
+    lines.append(f"- **等差数列总购买量**: {arithmetic_result.total_base_amount:,.8f} {base_asset}")
+    lines.append(f"- **等比数列总购买量**: {geometric_result.total_base_amount:,.8f} {base_asset}")
     if advantage_pct > 0:
-        print(f"等比数列优势: +{advantage_pct:.2f}%")
+        lines.append(f"- **等比数列优势**: +{advantage_pct:.2f}%")
     else:
-        print(f"等比数列优势: {advantage_pct:.2f}%")
-    print(f"\n等差数列平均价格: {arithmetic_result.average_price:,.4f} {quote_asset}/{base_asset}")
-    print(f"等比数列平均价格: {geometric_result.average_price:,.4f} {quote_asset}/{base_asset}")
+        lines.append(f"- **等比数列优势**: {advantage_pct:.2f}%")
+    lines.append("")
+
+    lines.append("### 平均价格对比")
+    lines.append("")
+    lines.append(f"- **等差数列平均价格**: {arithmetic_result.average_price:,.4f} {quote_asset}/{base_asset}")
+    lines.append(f"- **等比数列平均价格**: {geometric_result.average_price:,.4f} {quote_asset}/{base_asset}")
     price_diff_pct = (
         (arithmetic_result.average_price - geometric_result.average_price) / arithmetic_result.average_price * 100
     )
     if price_diff_pct > 0:
-        print(f"等比数列平均价格优势: -{price_diff_pct:.2f}% (更低的价格意味着更好的买入成本)")
+        lines.append(f"- **等比数列平均价格优势**: -{price_diff_pct:.2f}%（更低的价格意味着更好的买入成本）")
     else:
-        print(f"等比数列平均价格差异: {price_diff_pct:.2f}%")
+        lines.append(f"- **等比数列平均价格差异**: {price_diff_pct:.2f}%")
+    lines.append("")
 
-    # 平均收益率对比（复用前面计算的变量）
-    print(f"\n等差数列平均单网格收益率: {arithmetic_avg_return:,.2f}%")
-    print(f"等比数列平均单网格收益率: {geometric_avg_return:,.2f}%")
+    # 平均收益率对比
+    lines.append("### 平均收益率对比")
+    lines.append("")
+    lines.append(f"- **等差数列平均单网格收益率**: {arithmetic_avg_return:,.2f}%")
+    lines.append(f"- **等比数列平均单网格收益率**: {geometric_avg_return:,.2f}%")
     return_diff = geometric_avg_return - arithmetic_avg_return
     if return_diff > 0:
-        print(f"等比数列收益率优势: +{return_diff:.2f}%")
+        lines.append(f"- **等比数列收益率优势**: +{return_diff:.2f}%")
     elif return_diff < 0:
-        print(f"等比数列收益率差异: {return_diff:.2f}%")
+        lines.append(f"- **等比数列收益率差异**: {return_diff:.2f}%")
     else:
-        print("两种网格的平均收益率相同")
-    print("=" * 80)
+        lines.append("- **两种网格的平均收益率相同**")
+    lines.append("")
+
+    # 返回 Markdown 字符串
+    return "\n".join(lines)
 
 
 def main():
@@ -580,9 +682,14 @@ def main():
   - 价格区间：2000-3000 USDT
   - 网格数量：5 个
 
+示例 4：将结果保存到文件
+  python3 grid_calculator.py -p BTC-USDT -c 10000 -m 1000 -M 2000 -g 10 -o result.md
+  
+  这将计算网格参数并将 Markdown 格式的结果保存到 result.md 文件
+
 输出说明:
 ----------
-脚本会输出以下内容：
+脚本以 Markdown 格式输出以下内容：
 1. 输入参数摘要
 2. 等差数列网格：
    - 价格分布点（n+1 个）
@@ -595,6 +702,11 @@ def main():
    - 如果指定了分组，每组网格后会显示该组的汇总信息
    - 总购买量和总投入资金
 4. 对比总结：两种网格类型的购买量对比
+
+输出格式：
+- 所有输出均为 Markdown 格式，可直接保存为 .md 文件
+- 使用 --output/-o 参数可将结果保存到指定文件
+- 如果未指定 --output 参数，将根据命令行参数自动生成默认文件名（全小写+下划线格式）并保存
 
 注意事项:
 ----------
@@ -647,6 +759,13 @@ def main():
         default=None,
         help="分组数量，将网格按顺序分成指定数量的分组（必须是网格数量的因数）",
     )
+    parser.add_argument(
+        "--output",
+        "-o",
+        type=str,
+        default=None,
+        help="输出文件路径（可选），如果未指定则根据命令行参数自动生成默认文件名（全小写+下划线格式）",
+    )
 
     args = parser.parse_args()
 
@@ -685,8 +804,8 @@ def main():
 
     geometric_result = calculate_geometric_grid(args.capital, args.min_price, args.max_price, args.grids)
 
-    # 输出结果
-    format_output(
+    # 生成 Markdown 输出
+    markdown_output = format_output(
         args.trading_pair,
         args.capital,
         args.min_price,
@@ -696,6 +815,26 @@ def main():
         geometric_result,
         args.groups,
     )
+
+    # 输出结果
+    if args.output:
+        # 使用指定的文件名
+        output_file = args.output
+    else:
+        # 使用默认文件名
+        output_file = generate_default_filename(
+            args.trading_pair,
+            args.capital,
+            args.min_price,
+            args.max_price,
+            args.grids,
+            args.groups,
+        )
+
+    # 写入文件
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write(markdown_output)
+    print(f"结果已保存到文件: {output_file}")
 
 
 if __name__ == "__main__":
