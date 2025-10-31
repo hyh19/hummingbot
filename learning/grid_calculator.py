@@ -433,84 +433,6 @@ def format_output(
         lines.append(f"- **分组数量**: {num_groups}（每组 {num_grids // num_groups} 个网格）")
     lines.append("")
 
-    # 输出等差数列网格结果
-    lines.append("## 等差数列网格")
-    lines.append("")
-
-    # 价格分布点
-    lines.append(f"### 价格分布点（共 {len(arithmetic_result.price_points)} 个）")
-    lines.append("")
-    price_table_rows = []
-    for i, price in enumerate(arithmetic_result.price_points):
-        marker = "（最高价，不含买单）" if i == len(arithmetic_result.price_points) - 1 else ""
-        price_table_rows.append(f"| {i+1} | {price:,.4f} {quote_asset} | {marker} |")
-    lines.append("| 序号 | 价格 | 备注 |")
-    lines.append("|------|------|------|")
-    lines.extend(price_table_rows)
-    lines.append("")
-
-    # 买入网格详情
-    lines.append(f"### 买入网格详情（共 {len(arithmetic_result.buy_prices)} 个）")
-    lines.append("")
-    lines.append(f"| 层级 | 价格 ({quote_asset}) | 投入资金 ({quote_asset}) | 购买量 ({base_asset}) | 收益率 (%) |")
-    lines.append("|------|------|------|------|------|")
-
-    total_quote_check = 0
-    arithmetic_avg_return = (
-        sum(arithmetic_result.grid_returns) / len(arithmetic_result.grid_returns)
-        if arithmetic_result.grid_returns
-        else 0.0
-    )
-
-    # 如果有分组，在表格中插入分组汇总
-    if num_groups is not None:
-        arithmetic_group_stats = calculate_group_stats(arithmetic_result, num_groups)
-        grids_per_group = len(arithmetic_result.buy_prices) // num_groups
-        group_idx = 0
-
-        for i in range(len(arithmetic_result.buy_prices)):
-            price = arithmetic_result.buy_prices[i]
-            quote = arithmetic_result.quote_amounts[i]
-            base = arithmetic_result.base_amounts[i]
-            return_pct = arithmetic_result.grid_returns[i]
-            total_quote_check += quote
-            lines.append(f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} |")
-
-            # 如果是组的最后一个网格，插入分组汇总行
-            if (i + 1) % grids_per_group == 0:
-                group_stat = arithmetic_group_stats[group_idx]
-                lines.append(
-                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | **{group_stat.base_amount:,.8f}** | |"
-                )
-                group_idx += 1
-                # 如果不是最后一组，添加分隔行
-                if group_idx < num_groups:
-                    lines.append("| | | | | |")
-    else:
-        # 没有分组时，正常输出所有网格
-        for i in range(len(arithmetic_result.buy_prices)):
-            price = arithmetic_result.buy_prices[i]
-            quote = arithmetic_result.quote_amounts[i]
-            base = arithmetic_result.base_amounts[i]
-            return_pct = arithmetic_result.grid_returns[i]
-            total_quote_check += quote
-            lines.append(f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} |")
-
-    # 合计行
-    lines.append(
-        f"| **合计** | | **{total_quote_check:,.4f}** | **{arithmetic_result.total_base_amount:,.8f}** | **{arithmetic_avg_return:,.2f}** |"
-    )
-    lines.append("")
-
-    # 汇总统计
-    lines.append("### 汇总统计")
-    lines.append("")
-    lines.append(f"- **总购买量**: {arithmetic_result.total_base_amount:,.8f} {base_asset}")
-    lines.append(f"- **总投入资金**: {total_quote_check:,.2f} {quote_asset}")
-    lines.append(f"- **平均价格**: {arithmetic_result.average_price:,.4f} {quote_asset}/{base_asset}")
-    lines.append(f"- **平均单网格收益率**: {arithmetic_avg_return:,.2f}%")
-    lines.append("")
-
     # 输出等比数列网格结果
     lines.append("## 等比数列网格")
     lines.append("")
@@ -589,6 +511,84 @@ def format_output(
     lines.append(f"- **平均单网格收益率**: {geometric_avg_return:,.2f}%")
     lines.append("")
 
+    # 输出等差数列网格结果
+    lines.append("## 等差数列网格")
+    lines.append("")
+
+    # 价格分布点
+    lines.append(f"### 价格分布点（共 {len(arithmetic_result.price_points)} 个）")
+    lines.append("")
+    price_table_rows = []
+    for i, price in enumerate(arithmetic_result.price_points):
+        marker = "（最高价，不含买单）" if i == len(arithmetic_result.price_points) - 1 else ""
+        price_table_rows.append(f"| {i+1} | {price:,.4f} {quote_asset} | {marker} |")
+    lines.append("| 序号 | 价格 | 备注 |")
+    lines.append("|------|------|------|")
+    lines.extend(price_table_rows)
+    lines.append("")
+
+    # 买入网格详情
+    lines.append(f"### 买入网格详情（共 {len(arithmetic_result.buy_prices)} 个）")
+    lines.append("")
+    lines.append(f"| 层级 | 价格 ({quote_asset}) | 投入资金 ({quote_asset}) | 购买量 ({base_asset}) | 收益率 (%) |")
+    lines.append("|------|------|------|------|------|")
+
+    total_quote_check = 0
+    arithmetic_avg_return = (
+        sum(arithmetic_result.grid_returns) / len(arithmetic_result.grid_returns)
+        if arithmetic_result.grid_returns
+        else 0.0
+    )
+
+    # 如果有分组，在表格中插入分组汇总
+    if num_groups is not None:
+        arithmetic_group_stats = calculate_group_stats(arithmetic_result, num_groups)
+        grids_per_group = len(arithmetic_result.buy_prices) // num_groups
+        group_idx = 0
+
+        for i in range(len(arithmetic_result.buy_prices)):
+            price = arithmetic_result.buy_prices[i]
+            quote = arithmetic_result.quote_amounts[i]
+            base = arithmetic_result.base_amounts[i]
+            return_pct = arithmetic_result.grid_returns[i]
+            total_quote_check += quote
+            lines.append(f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} |")
+
+            # 如果是组的最后一个网格，插入分组汇总行
+            if (i + 1) % grids_per_group == 0:
+                group_stat = arithmetic_group_stats[group_idx]
+                lines.append(
+                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | **{group_stat.base_amount:,.8f}** | |"
+                )
+                group_idx += 1
+                # 如果不是最后一组，添加分隔行
+                if group_idx < num_groups:
+                    lines.append("| | | | | |")
+    else:
+        # 没有分组时，正常输出所有网格
+        for i in range(len(arithmetic_result.buy_prices)):
+            price = arithmetic_result.buy_prices[i]
+            quote = arithmetic_result.quote_amounts[i]
+            base = arithmetic_result.base_amounts[i]
+            return_pct = arithmetic_result.grid_returns[i]
+            total_quote_check += quote
+            lines.append(f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} |")
+
+    # 合计行
+    lines.append(
+        f"| **合计** | | **{total_quote_check:,.4f}** | **{arithmetic_result.total_base_amount:,.8f}** | **{arithmetic_avg_return:,.2f}** |"
+    )
+    lines.append("")
+
+    # 汇总统计
+    lines.append("### 汇总统计")
+    lines.append("")
+    lines.append(f"- **总购买量**: {arithmetic_result.total_base_amount:,.8f} {base_asset}")
+    lines.append(f"- **总投入资金**: {total_quote_check:,.2f} {quote_asset}")
+    lines.append(f"- **平均价格**: {arithmetic_result.average_price:,.4f} {quote_asset}/{base_asset}")
+    lines.append(f"- **平均单网格收益率**: {arithmetic_avg_return:,.2f}%")
+    lines.append("")
+
     # 对比总结
     lines.append("## 对比总结")
     lines.append("")
@@ -600,8 +600,8 @@ def format_output(
 
     lines.append("### 购买量对比")
     lines.append("")
-    lines.append(f"- **等差数列总购买量**: {arithmetic_result.total_base_amount:,.8f} {base_asset}")
     lines.append(f"- **等比数列总购买量**: {geometric_result.total_base_amount:,.8f} {base_asset}")
+    lines.append(f"- **等差数列总购买量**: {arithmetic_result.total_base_amount:,.8f} {base_asset}")
     if advantage_pct > 0:
         lines.append(f"- **等比数列优势**: +{advantage_pct:.2f}%")
     else:
@@ -610,8 +610,8 @@ def format_output(
 
     lines.append("### 平均价格对比")
     lines.append("")
-    lines.append(f"- **等差数列平均价格**: {arithmetic_result.average_price:,.4f} {quote_asset}/{base_asset}")
     lines.append(f"- **等比数列平均价格**: {geometric_result.average_price:,.4f} {quote_asset}/{base_asset}")
+    lines.append(f"- **等差数列平均价格**: {arithmetic_result.average_price:,.4f} {quote_asset}/{base_asset}")
     price_diff_pct = (
         (arithmetic_result.average_price - geometric_result.average_price) / arithmetic_result.average_price * 100
     )
@@ -624,8 +624,8 @@ def format_output(
     # 平均收益率对比
     lines.append("### 平均收益率对比")
     lines.append("")
-    lines.append(f"- **等差数列平均单网格收益率**: {arithmetic_avg_return:,.2f}%")
     lines.append(f"- **等比数列平均单网格收益率**: {geometric_avg_return:,.2f}%")
+    lines.append(f"- **等差数列平均单网格收益率**: {arithmetic_avg_return:,.2f}%")
     return_diff = geometric_avg_return - arithmetic_avg_return
     if return_diff > 0:
         lines.append(f"- **等比数列收益率优势**: +{return_diff:.2f}%")
