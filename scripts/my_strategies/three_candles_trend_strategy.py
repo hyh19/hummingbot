@@ -43,7 +43,6 @@ class ThreeCandlesTrendConfig(StrategyV2ConfigBase):
     # 风险管理参数
     stop_loss: Decimal = Field(default=Decimal("0.02"), gt=0)  # 止损 2%
     take_profit: Decimal = Field(default=Decimal("0.015"), gt=0)  # 止盈 1.5%
-    time_limit: int = Field(default=60 * 60 * 24, gt=0)  # 时间限制 24 小时
 
     @property
     def triple_barrier_config(self) -> TripleBarrierConfig:
@@ -53,11 +52,9 @@ class ThreeCandlesTrendConfig(StrategyV2ConfigBase):
         return TripleBarrierConfig(
             stop_loss=self.stop_loss,
             take_profit=self.take_profit,
-            time_limit=self.time_limit,
             open_order_type=OrderType.MARKET,
             take_profit_order_type=OrderType.LIMIT,
             stop_loss_order_type=OrderType.MARKET,
-            time_limit_order_type=OrderType.MARKET,
         )
 
     @field_validator("position_mode", mode="before")
