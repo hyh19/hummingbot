@@ -127,13 +127,13 @@ flowchart TD
 
 ### 基础参数
 
-| 参数名称 | 类型 | 说明 | 示例值 |
-|---------|------|------|--------|
-| `exchange` | string | 交易所名称 | `hyperliquid_perpetual` |
-| `trading_pair` | string | 交易对 | `BTC-USD`, `ETH-USD` |
-| `candles_exchange` | string | K 线数据源交易所 | `binance_perpetual` |
-| `candles_pair` | string | K 线数据源交易对 | `BTC-USDT`, `ETH-USDT` |
-| `candles_interval` | string | K 线周期 | `1m`, `5m`, `15m`, `1h` |
+| 参数名称 | 类型 | 说明 | 默认值 | 示例值 |
+|---------|------|------|--------|--------|
+| `exchange` | string | 交易所名称 | `binance_perpetual` | `hyperliquid_perpetual` |
+| `trading_pair` | string | 交易对 | `BTC-USDT` | `BTC-USD`, `ETH-USD` |
+| `candles_exchange` | string | K 线数据源交易所 | `binance_perpetual` | `binance_perpetual` |
+| `candles_pair` | string | K 线数据源交易对 | `BTC-USDT` | `BTC-USDT`, `ETH-USDT` |
+| `candles_interval` | string | K 线周期 | `1h` | `1m`, `5m`, `15m`, `1h` |
 
 ### 策略参数
 
@@ -141,8 +141,8 @@ flowchart TD
 |---------|------|------|--------|
 | `trade_direction` | string | 开仓方向：`LONG`（仅做多）或 `SHORT`（仅做空） | `LONG` |
 | `min_candle_body_pct` | float | K 线实体最小幅度百分比，用于过滤假突破 | `0.001`（0.1%） |
-| `leverage` | int | 杠杆倍数 | `100` |
-| `order_amount_quote` | float | 开仓金额（以 USDT 计价） | `30` |
+| `leverage` | int | 杠杆倍数 | `50` |
+| `order_amount_quote` | float | 开仓金额（以 USDT 计价） | `10` |
 
 ### 风险管理参数
 
@@ -159,19 +159,19 @@ flowchart TD
 # 三连阳/三连阴趋势策略配置
 
 # 交易所配置
-exchange: hyperliquid_perpetual
-trading_pair: BTC-USD
+exchange: binance_perpetual
+trading_pair: BTC-USDT
 
 # K 线数据源配置
 candles_exchange: binance_perpetual
 candles_pair: BTC-USDT
-candles_interval: 5m
+candles_interval: 1h
 
 # 策略参数
 trade_direction: LONG          # 仅做多（可选值：LONG, SHORT）
 min_candle_body_pct: 0.001     # K 线实体最小幅度 0.1%
-leverage: 100                  # 100 倍杠杆
-order_amount_quote: 50         # 每次开仓 50 USDT
+leverage: 50                   # 50 倍杠杆
+order_amount_quote: 10         # 每次开仓 10 USDT
 
 # 风险管理
 stop_loss: 0.02                # 止损 2%
@@ -181,11 +181,11 @@ take_profit: 0.015             # 止盈 1.5%
 ### 配置说明
 
 1. **交易所和交易对**：
-   - 在 `hyperliquid_perpetual` 交易所交易 `BTC-USD`
+   - 在 `binance_perpetual` 交易所交易 `BTC-USDT`
    - 使用 `binance_perpetual` 的 `BTC-USDT` K 线数据（流动性更好）
 
 2. **K 线周期**：
-   - 使用 5 分钟 K 线
+   - 使用 1 小时 K 线
    - 建议根据市场波动性调整，波动大的市场可以使用更大周期
 
 3. **开仓方向**：
@@ -197,8 +197,8 @@ take_profit: 0.015             # 止盈 1.5%
    - 可根据交易品种的波动性调整，波动小的品种可以降低此值
 
 5. **杠杆和仓位**：
-   - 100 倍杠杆风险极高，建议谨慎使用
-   - 每次开仓 50 USDT，实际持仓价值为 5000 USDT
+   - 50 倍杠杆风险较高，建议谨慎使用
+   - 每次开仓 10 USDT，实际持仓价值为 500 USDT
 
 6. **止盈止损**：
    - 止损 2%，止盈 1.5%
