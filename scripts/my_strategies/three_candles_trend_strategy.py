@@ -31,7 +31,7 @@ class ThreeCandlesTrendConfig(StrategyV2ConfigBase):
     candles_exchange: str = Field(default="binance_perpetual")
     candles_pair: str = Field(default="BTC-USDT")
     candles_interval: str = Field(default="1h")
-    candles_length: int = Field(default=10, gt=0)  # 需要至少 3 根,多保留一些用于分析
+    candles_length: int = Field(default=10, gt=0)  # 需要至少 3 根，多保留一些用于分析
 
     # 策略参数
     trade_direction: str = Field(default="LONG")  # LONG 或 SHORT
@@ -48,7 +48,7 @@ class ThreeCandlesTrendConfig(StrategyV2ConfigBase):
     @property
     def triple_barrier_config(self) -> TripleBarrierConfig:
         """
-        三重屏障配置,用于自动止盈止损
+        三重屏障配置，用于自动止盈止损
         """
         return TripleBarrierConfig(
             stop_loss=self.stop_loss,
@@ -81,9 +81,9 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
     三连阳/三连阴趋势跟踪策略
 
     策略逻辑:
-    - 做多条件: 连续 3 根 K 线都是阳线,实体幅度达标,收盘价和开盘价都逐根升高
-    - 做空条件: 连续 3 根 K 线都是阴线,实体幅度达标,收盘价和开盘价都逐根降低
-    - 风险控制: 同时只允许持有一个仓位,通过止盈止损自动平仓
+    - 做多条件: 连续 3 根 K 线都是阳线，实体幅度达标，收盘价和开盘价都逐根升高
+    - 做空条件: 连续 3 根 K 线都是阴线，实体幅度达标，收盘价和开盘价都逐根降低
+    - 风险控制: 同时只允许持有一个仓位，通过止盈止损自动平仓
     """
 
     account_config_set = False
@@ -99,7 +99,7 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
         """
         初始化策略
         """
-        # 如果没有配置 K 线数据源,自动添加
+        # 如果没有配置 K 线数据源，自动添加
         if len(config.candles_config) == 0:
             config.candles_config.append(
                 CandlesConfig(
@@ -111,7 +111,7 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
             )
         super().__init__(connectors, config)
         self.config = config
-        self.current_signal = None  # 当前信号: 1(做多), -1(做空), None(无信号)
+        self.current_signal = None  # 当前信号: 1 (做多)，-1 (做空)，None (无信号)
 
     def start(self, clock: Clock, timestamp: float) -> None:
         """
@@ -122,7 +122,7 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
 
     def apply_initial_setting(self):
         """
-        应用初始设置:设置杠杆和持仓模式
+        应用初始设置: 设置杠杆和持仓模式
         """
         if not self.account_config_set:
             for connector_name, connector in self.connectors.items():
@@ -139,7 +139,7 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
         创建执行器动作提议
 
         流程:
-        1. 检查是否已有持仓,有则不开新仓
+        1. 检查是否已有持仓，有则不开新仓
         2. 获取开仓信号
         3. 根据 trade_direction 过滤信号
         4. 生成开仓动作
@@ -149,7 +149,7 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
         # 检查是否已有活跃持仓
         active_executors = self.get_active_executors(self.config.exchange, self.config.trading_pair)
         if len(active_executors) > 0:
-            # 已有持仓,不再开新仓
+            # 已有持仓，不再开新仓
             return create_actions
 
         # 获取信号
@@ -167,7 +167,7 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
 
         # 根据 trade_direction 过滤信号
         if signal == 1 and self.config.trade_direction == "LONG":
-            # 做多信号,且策略允许做多
+            # 做多信号，且策略允许做多
             create_actions.append(
                 CreateExecutorAction(
                     executor_config=PositionExecutorConfig(
@@ -183,7 +183,7 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
                 )
             )
         elif signal == -1 and self.config.trade_direction == "SHORT":
-            # 做空信号,且策略允许做空
+            # 做空信号，且策略允许做空
             create_actions.append(
                 CreateExecutorAction(
                     executor_config=PositionExecutorConfig(
@@ -205,7 +205,7 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
         """
         停止执行器动作提议
 
-        本策略依赖 TripleBarrierConfig 自动止盈止损,不需要手动平仓
+        本策略依赖 TripleBarrierConfig 自动止盈止损，不需要手动平仓
         """
         return []
 
@@ -237,8 +237,8 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
             trading_pair: K 线数据源交易对
 
         Returns:
-            1: 做多信号(三连阳)
-            -1: 做空信号(三连阴)
+            1: 做多信号 (三连阳)
+            -1: 做空信号 (三连阴)
             None: 无信号
         """
         try:
@@ -251,11 +251,11 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
                 # K 线数据不足
                 return None
 
-            # 检查三连阳(做多信号)
+            # 检查三连阳 (做多信号)
             if self.check_three_bullish_candles(candles):
                 return 1
 
-            # 检查三连阴(做空信号)
+            # 检查三连阴 (做空信号)
             if self.check_three_bearish_candles(candles):
                 return -1
 
