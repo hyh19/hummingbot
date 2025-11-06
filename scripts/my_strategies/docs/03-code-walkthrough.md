@@ -572,10 +572,9 @@ Hummingbot 会自动：
 ```python
 def start(self, clock: Clock, timestamp: float) -> None:
     """
-    启动策略
+    启动策略，调用父类方法完成初始化
     """
-    self._last_timestamp = timestamp
-    self.apply_initial_setting()
+    super().start(clock, timestamp)
 ```
 
 **调用时机**：
@@ -586,6 +585,38 @@ def start(self, clock: Clock, timestamp: float) -> None:
 
 - `clock`：时钟对象，用于时间管理
 - `timestamp`：当前时间戳
+
+**为什么调用父类方法？**
+
+父类 `StrategyV2Base.start()` 已经实现了以下重要功能：
+
+1. **设置时间戳**：`self._last_timestamp = timestamp`
+2. **应用初始设置**：调用 `self.apply_initial_setting()`（子类已重写）
+3. **MQTT 性能发布器初始化**：如果启用了 MQTT，会创建性能数据发布器
+4. **启动控制器**：启动所有已配置的 controllers（如果有）
+
+```python
+# 父类 StrategyV2Base.start() 的实现逻辑
+def start(self, clock: Clock, timestamp: float) -> None:
+    self._last_timestamp = timestamp
+    self.apply_initial_setting()
+    
+    # 检查并初始化 MQTT 性能发布器
+    if HummingbotApplication.main_application()._mqtt is not None:
+        self.mqtt_enabled = True
+        self._pub = ETopicPublisher("performance", use_bot_prefix=True)
+    
+    # 启动所有控制器
+    for controller in self.controllers.values():
+        controller.start()
+```
+
+**设计原则**：
+
+- ✅ 遵循面向对象的继承原则，复用父类功能
+- ✅ 避免代码重复，提高可维护性
+- ✅ 确保不会遗漏父类的重要功能
+- ✅ 如果将来父类增加新功能，子类会自动继承
 
 ---
 

@@ -112,10 +112,9 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
 
     def start(self, clock: Clock, timestamp: float) -> None:
         """
-        启动策略
+        启动策略，调用父类方法完成初始化
         """
-        self._last_timestamp = timestamp
-        self.apply_initial_setting()
+        super().start(clock, timestamp)
 
     def apply_initial_setting(self):
         """
