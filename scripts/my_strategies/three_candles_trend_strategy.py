@@ -247,6 +247,20 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
                 # K 线数据不足
                 return None
 
+            last_3 = candles.tail(3)
+            opens = last_3["open"].values
+            closes = last_3["close"].values
+            candle_info = ", ".join(
+                [f"#{index + 1}: open={opens[index]:.4f}, close={closes[index]:.4f}" for index in range(3)]
+            )
+            self.logger().info(
+                "最近 3 根 K 线数据 (%s %s %s): %s",
+                connector_name,
+                trading_pair,
+                self.config.candles_interval,
+                candle_info,
+            )
+
             # 检查三连阳 (做多信号)
             if self.check_three_bullish_candles(candles):
                 return 1
@@ -285,26 +299,24 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
         opens = last_3["open"].values
         closes = last_3["close"].values
 
-        # 条件 1: 都是阳线
-        for i in range(3):
-            if closes[i] <= opens[i]:
-                return False
+        min_body_pct = float(self.config.min_candle_body_pct)
+        bullish_flags = [closes[i] > opens[i] for i in range(3)]
+        body_pcts = [(closes[i] - opens[i]) / opens[i] for i in range(3)]
+        body_flags = [body_pcts[i] >= min_body_pct for i in range(3)]
+        closes_increasing = closes[0] < closes[1] < closes[2]
+        opens_increasing = opens[0] < opens[1] < opens[2]
 
-        # 条件 2: 实体幅度达标
-        for i in range(3):
-            body_pct = (closes[i] - opens[i]) / opens[i]
-            if body_pct < float(self.config.min_candle_body_pct):
-                return False
+        result = all(bullish_flags) and all(body_flags) and closes_increasing and opens_increasing
 
-        # 条件 3: 收盘价递增
-        if not (closes[2] > closes[1] > closes[0]):
-            return False
+        self.logger().info(
+            "三连阳判定 -> 阳线: %s, 实体达标: %s, 收盘递增: %s, 开盘递增: %s",
+            bullish_flags,
+            body_flags,
+            closes_increasing,
+            opens_increasing,
+        )
 
-        # 条件 4: 开盘价递增
-        if not (opens[2] > opens[1] > opens[0]):
-            return False
-
-        return True
+        return result
 
     def check_three_bearish_candles(self, candles) -> bool:
         """
@@ -330,26 +342,24 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
         opens = last_3["open"].values
         closes = last_3["close"].values
 
-        # 条件 1: 都是阴线
-        for i in range(3):
-            if closes[i] >= opens[i]:
-                return False
+        min_body_pct = float(self.config.min_candle_body_pct)
+        bearish_flags = [closes[i] < opens[i] for i in range(3)]
+        body_pcts = [(opens[i] - closes[i]) / opens[i] for i in range(3)]
+        body_flags = [body_pcts[i] >= min_body_pct for i in range(3)]
+        closes_decreasing = closes[0] > closes[1] > closes[2]
+        opens_decreasing = opens[0] > opens[1] > opens[2]
 
-        # 条件 2: 实体幅度达标
-        for i in range(3):
-            body_pct = (opens[i] - closes[i]) / opens[i]
-            if body_pct < float(self.config.min_candle_body_pct):
-                return False
+        result = all(bearish_flags) and all(body_flags) and closes_decreasing and opens_decreasing
 
-        # 条件 3: 收盘价递减
-        if not (closes[2] < closes[1] < closes[0]):
-            return False
+        self.logger().info(
+            "三连阴判定 -> 阴线: %s, 实体达标: %s, 收盘递减: %s, 开盘递减: %s",
+            bearish_flags,
+            body_flags,
+            closes_decreasing,
+            opens_decreasing,
+        )
 
-        # 条件 4: 开盘价递减
-        if not (opens[2] < opens[1] < opens[0]):
-            return False
-
-        return True
+        return result
 
     def format_status(self) -> str:
         """
