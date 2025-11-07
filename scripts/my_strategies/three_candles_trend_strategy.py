@@ -268,6 +268,39 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
                 # K 线数据不足
                 return None
 
+            candles = candles.copy()
+
+            candles_interval_seconds = None
+            try:
+                candles_feed = self.market_data_provider.get_candles_feed(
+                    CandlesConfig(
+                        connector=connector_name,
+                        trading_pair=trading_pair,
+                        interval=self.config.candles_interval,
+                        max_records=self.config.candles_length,
+                    )
+                )
+                candles_interval_seconds = getattr(candles_feed, "interval_in_seconds", None)
+            except Exception:
+                # 无法获取蜡烛图周期时忽略，使用退化方案
+                candles_interval_seconds = None
+
+            if "timestamp" in candles.columns and candles_interval_seconds:
+                timestamps = candles["timestamp"].astype(float)
+                # 处理毫秒级时间戳
+                if timestamps.max() > 1e12:
+                    timestamps = timestamps / 1000
+
+                current_time = int(self.current_timestamp)
+                interval_start = current_time - (current_time % candles_interval_seconds)
+                candles = candles.loc[timestamps < interval_start]
+            else:
+                # 无法准确定位当前 K 线时，直接移除最后一根
+                candles = candles.iloc[:-1]
+
+            if candles is None or len(candles) < 3:
+                return None
+
             last_3 = candles.tail(3)
             opens = last_3["open"].values
             closes = last_3["close"].values
@@ -315,8 +348,10 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
         if len(candles) < 3:
             return False
 
-        # 获取最近 3 根 K 线
-        last_3 = candles.tail(3)
+        # 获取最近 3 根已完成 K 线
+        last_3 = candles.tail(3).dropna(subset=["open", "close"])
+        if len(last_3) < 3:
+            return False
         opens = last_3["open"].values
         closes = last_3["close"].values
 
@@ -361,8 +396,10 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
         if len(candles) < 3:
             return False
 
-        # 获取最近 3 根 K 线
-        last_3 = candles.tail(3)
+        # 获取最近 3 根已完成 K 线
+        last_3 = candles.tail(3).dropna(subset=["open", "close"])
+        if len(last_3) < 3:
+            return False
         opens = last_3["open"].values
         closes = last_3["close"].values
 
