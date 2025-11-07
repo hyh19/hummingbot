@@ -44,6 +44,9 @@ class ThreeCandlesTrendConfig(StrategyV2ConfigBase):
     stop_loss: Decimal = Field(default=Decimal("0.02"), gt=0)  # 止损 2%
     take_profit: Decimal = Field(default=Decimal("0.015"), gt=0)  # 止盈 1.5%
 
+    # 实盘控制
+    is_live_trading: bool = Field(default=False)  # 是否执行真实下单
+
     @property
     def triple_barrier_config(self) -> TripleBarrierConfig:
         """
@@ -164,6 +167,15 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
         # 根据 trade_direction 过滤信号
         if signal == 1 and self.config.trade_direction == "LONG":
             # 做多信号，且策略允许做多
+            if not self.config.is_live_trading:
+                message = (
+                    f"检测到做多信号 (交易对: {self.config.trading_pair}, 价格: {mid_price:.4f})，"
+                    "当前为模拟模式，未执行真实下单。"
+                )
+                self.logger().info(message)
+                self.notify(message)
+                return create_actions
+
             create_actions.append(
                 CreateExecutorAction(
                     executor_config=PositionExecutorConfig(
@@ -180,6 +192,15 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
             )
         elif signal == -1 and self.config.trade_direction == "SHORT":
             # 做空信号，且策略允许做空
+            if not self.config.is_live_trading:
+                message = (
+                    f"检测到做空信号 (交易对: {self.config.trading_pair}, 价格: {mid_price:.4f})，"
+                    "当前为模拟模式，未执行真实下单。"
+                )
+                self.logger().info(message)
+                self.notify(message)
+                return create_actions
+
             create_actions.append(
                 CreateExecutorAction(
                     executor_config=PositionExecutorConfig(
@@ -250,15 +271,15 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
             last_3 = candles.tail(3)
             opens = last_3["open"].values
             closes = last_3["close"].values
-            candle_info = ", ".join(
-                [f"#{index + 1}: open={opens[index]:.4f}, close={closes[index]:.4f}" for index in range(3)]
+            candle_lines = "\n".join(
+                [f"  #{index + 1}: open={opens[index]:.4f}, close={closes[index]:.4f}" for index in range(3)]
             )
             self.logger().info(
-                "最近 3 根 K 线数据 (%s %s %s): %s",
+                "最近 3 根 K 线数据 (%s %s %s):\n%s",
                 connector_name,
                 trading_pair,
                 self.config.candles_interval,
-                candle_info,
+                candle_lines,
             )
 
             # 检查三连阳 (做多信号)
@@ -306,12 +327,15 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
         closes_increasing = closes[0] < closes[1] < closes[2]
         opens_increasing = opens[0] < opens[1] < opens[2]
 
-        result = all(bullish_flags) and all(body_flags) and closes_increasing and opens_increasing
+        bullish_condition = all(bullish_flags)
+        body_condition = all(body_flags)
+        result = bullish_condition and body_condition and closes_increasing and opens_increasing
 
         self.logger().info(
-            "三连阳判定 -> 阳线: %s, 实体达标: %s, 收盘递增: %s, 开盘递增: %s",
-            bullish_flags,
-            body_flags,
+            "三连阳判定结果: %s\n  阳线达标: %s\n  实体达标: %s\n  收盘递增: %s\n  开盘递增: %s",
+            result,
+            bullish_condition,
+            body_condition,
             closes_increasing,
             opens_increasing,
         )
@@ -349,12 +373,15 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
         closes_decreasing = closes[0] > closes[1] > closes[2]
         opens_decreasing = opens[0] > opens[1] > opens[2]
 
-        result = all(bearish_flags) and all(body_flags) and closes_decreasing and opens_decreasing
+        bearish_condition = all(bearish_flags)
+        body_condition = all(body_flags)
+        result = bearish_condition and body_condition and closes_decreasing and opens_decreasing
 
         self.logger().info(
-            "三连阴判定 -> 阴线: %s, 实体达标: %s, 收盘递减: %s, 开盘递减: %s",
-            bearish_flags,
-            body_flags,
+            "三连阴判定结果: %s\n  阴线达标: %s\n  实体达标: %s\n  收盘递减: %s\n  开盘递减: %s",
+            result,
+            bearish_condition,
+            body_condition,
             closes_decreasing,
             opens_decreasing,
         )
