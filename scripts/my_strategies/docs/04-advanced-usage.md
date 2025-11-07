@@ -152,7 +152,7 @@ class ThreeCandlesTrendConfig(StrategyV2ConfigBase):
             return TripleBarrierConfig(
                 stop_loss=self.stop_loss,
                 take_profit=self.take_profit,
-                open_order_type=OrderType.MARKET,
+                open_order_type=OrderType.LIMIT,
                 take_profit_order_type=OrderType.LIMIT,
                 stop_loss_order_type=OrderType.MARKET,
             )
@@ -211,7 +211,7 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
             triple_barrier = TripleBarrierConfig(
                 stop_loss=dynamic_stop_loss,
                 take_profit=dynamic_take_profit,
-                open_order_type=OrderType.MARKET,
+                open_order_type=OrderType.LIMIT,
                 take_profit_order_type=OrderType.LIMIT,
                 stop_loss_order_type=OrderType.MARKET,
             )
@@ -663,7 +663,7 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
             stop_loss=self.config.stop_loss,
             take_profit=self.config.take_profit,
             trailing_stop=trailing_stop,
-            open_order_type=OrderType.MARKET,
+            open_order_type=OrderType.LIMIT,
             take_profit_order_type=OrderType.LIMIT,
             stop_loss_order_type=OrderType.MARKET,
         )

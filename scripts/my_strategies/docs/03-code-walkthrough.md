@@ -265,7 +265,7 @@ def triple_barrier_config(self) -> TripleBarrierConfig:
     return TripleBarrierConfig(
         stop_loss=self.stop_loss,
         take_profit=self.take_profit,
-        open_order_type=OrderType.MARKET,
+        open_order_type=OrderType.LIMIT,
         take_profit_order_type=OrderType.LIMIT,
         stop_loss_order_type=OrderType.MARKET,
     )
@@ -295,10 +295,16 @@ barrier = config.triple_barrier_config()  # 需要加括号调用
 **订单类型选择**：
 
 ```python
-open_order_type=OrderType.MARKET,        # 开仓用市价单，立即成交
+open_order_type=OrderType.LIMIT,         # 开仓用限价单，控制入场价格
 take_profit_order_type=OrderType.LIMIT,  # 止盈用限价单，减少滑点
 stop_loss_order_type=OrderType.MARKET,   # 止损用市价单，确保成交
 ```
+
+**为什么开仓用 LIMIT？**
+
+- 控制入场价，减少剧烈波动导致的不利成交
+- 可以与信号触发价保持一致，便于回测复现
+- 若市场瞬时波动超过预期，限价单会自动保护不追高
 
 **为什么止盈用 LIMIT，止损用 MARKET？**
 
