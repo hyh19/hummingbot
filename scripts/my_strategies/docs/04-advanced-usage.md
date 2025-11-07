@@ -11,6 +11,8 @@
 在现有的三连阳/阴基础上，增加更多过滤条件以提高信号质量：
 
 ```python
+from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
+
 def get_signal(self, connector_name: str, trading_pair: str) -> Optional[int]:
     """增强版信号检测"""
     try:
@@ -20,6 +22,36 @@ def get_signal(self, connector_name: str, trading_pair: str) -> Optional[int]:
             self.config.candles_length
         )
         
+        if candles is None or len(candles) < 3:
+            return None
+
+        candles = candles.copy()
+
+        candles_interval_seconds = None
+        try:
+            candles_feed = self.market_data_provider.get_candles_feed(
+                CandlesConfig(
+                    connector=connector_name,
+                    trading_pair=trading_pair,
+                    interval=self.config.candles_interval,
+                    max_records=self.config.candles_length,
+                )
+            )
+            candles_interval_seconds = getattr(candles_feed, "interval_in_seconds", None)
+        except Exception:
+            candles_interval_seconds = None
+
+        if "timestamp" in candles.columns and candles_interval_seconds:
+            timestamps = candles["timestamp"].astype(float)
+            if timestamps.max() > 1e12:
+                timestamps = timestamps / 1000
+
+            current_time = int(self.current_timestamp)
+            interval_start = current_time - (current_time % candles_interval_seconds)
+            candles = candles.loc[timestamps < interval_start]
+        else:
+            candles = candles.iloc[:-1]
+
         if candles is None or len(candles) < 3:
             return None
         
@@ -83,6 +115,8 @@ def check_breakout(self, candles, direction: str) -> bool:
         previous_low = previous["low"].min()
         return current_low < previous_low
 ```
+
+> ✅ **最佳实践**：无论如何扩展信号逻辑，务必先复制并裁剪 K 线数据，保持与基类一致的“仅使用已闭合蜡烛”约束，再叠加自定义过滤条件。
 
 **效果评估**：
 
@@ -217,6 +251,8 @@ atr_multiplier: 1.5      # ATR 倍数（止损 = ATR × 1.5）
 使用多个时间周期确认趋势：
 
 ```python
+from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
+
 class ThreeCandlesTrendConfig(StrategyV2ConfigBase):
     # 添加更大周期的配置
     higher_timeframe_interval: str = Field(default="4h")
@@ -256,6 +292,36 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
                 5
             )
             
+            if candles is None or len(candles) < 3:
+                return None
+
+            candles = candles.copy()
+
+            candles_interval_seconds = None
+            try:
+                feed = self.market_data_provider.get_candles_feed(
+                    CandlesConfig(
+                        connector=self.config.candles_exchange,
+                        trading_pair=self.config.candles_pair,
+                        interval=self.config.higher_timeframe_interval,
+                        max_records=5,
+                    )
+                )
+                candles_interval_seconds = getattr(feed, "interval_in_seconds", None)
+            except Exception:
+                candles_interval_seconds = None
+
+            if "timestamp" in candles.columns and candles_interval_seconds:
+                timestamps = candles["timestamp"].astype(float)
+                if timestamps.max() > 1e12:
+                    timestamps = timestamps / 1000
+
+                current_time = int(self.current_timestamp)
+                interval_start = current_time - (current_time % candles_interval_seconds)
+                candles = candles.loc[timestamps < interval_start]
+            else:
+                candles = candles.iloc[:-1]
+
             if candles is None or len(candles) < 3:
                 return None
             
@@ -460,6 +526,7 @@ optuna.visualization.plot_param_importances(study)
 
 ```python
 import pandas_ta as ta
+from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 
 class ThreeCandlesTrendConfig(StrategyV2ConfigBase):
     # 添加 RSI 配置
@@ -503,6 +570,36 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
             max(self.config.candles_length, self.config.rsi_period + 10)
         )
         
+        if candles is None or len(candles) < 3:
+            return None
+
+        candles = candles.copy()
+
+        candles_interval_seconds = None
+        try:
+            feed = self.market_data_provider.get_candles_feed(
+                CandlesConfig(
+                    connector=connector_name,
+                    trading_pair=trading_pair,
+                    interval=self.config.candles_interval,
+                    max_records=self.config.candles_length,
+                )
+            )
+            candles_interval_seconds = getattr(feed, "interval_in_seconds", None)
+        except Exception:
+            candles_interval_seconds = None
+
+        if "timestamp" in candles.columns and candles_interval_seconds:
+            timestamps = candles["timestamp"].astype(float)
+            if timestamps.max() > 1e12:
+                timestamps = timestamps / 1000
+
+            current_time = int(self.current_timestamp)
+            interval_start = current_time - (current_time % candles_interval_seconds)
+            candles = candles.loc[timestamps < interval_start]
+        else:
+            candles = candles.iloc[:-1]
+
         if candles is None or len(candles) < 3:
             return None
         
@@ -1017,6 +1114,8 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
 **解决方案**：
 
 ```python
+from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
+
 class ThreeCandlesTrendStrategy(StrategyV2Base):
     def get_signal(self, connector_name: str, trading_pair: str) -> Optional[int]:
         """带重试机制的信号获取"""
@@ -1036,6 +1135,36 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
                 if candles is None or len(candles) < 3:
                     raise ValueError("K 线数据不足")
                 
+                candles = candles.copy()
+
+                candles_interval_seconds = None
+                try:
+                    feed = self.market_data_provider.get_candles_feed(
+                        CandlesConfig(
+                            connector=connector_name,
+                            trading_pair=trading_pair,
+                            interval=self.config.candles_interval,
+                            max_records=self.config.candles_length,
+                        )
+                    )
+                    candles_interval_seconds = getattr(feed, "interval_in_seconds", None)
+                except Exception:
+                    candles_interval_seconds = None
+
+                if "timestamp" in candles.columns and candles_interval_seconds:
+                    timestamps = candles["timestamp"].astype(float)
+                    if timestamps.max() > 1e12:
+                        timestamps = timestamps / 1000
+
+                    current_time = int(self.current_timestamp)
+                    interval_start = current_time - (current_time % candles_interval_seconds)
+                    candles = candles.loc[timestamps < interval_start]
+                else:
+                    candles = candles.iloc[:-1]
+
+                if candles is None or len(candles) < 3:
+                    raise ValueError("过滤后有效 K 线不足")
+
                 # 检查数据时效性
                 latest_timestamp = candles.iloc[-1]["timestamp"]
                 current_time = self.current_timestamp
@@ -1044,7 +1173,7 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
                 if time_diff > 3600000:  # 超过 1 小时
                     raise ValueError("K 线数据过时")
                 
-                # 数据有效，继续处理
+                # 数据有效，继续处理（传入已裁剪的 K 线）
                 return self._process_signal(candles)
                 
             except Exception as e:

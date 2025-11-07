@@ -768,6 +768,15 @@ def create_actions_proposal(self) -> List[CreateExecutorAction]:
     # 根据 trade_direction 过滤信号
     if signal == 1 and self.config.trade_direction == "LONG":
         # 做多信号，且策略允许做多
+        if not self.config.is_live_trading:
+            message = (
+                f"检测到做多信号 (交易对: {self.config.trading_pair}, 价格: {mid_price:.4f})，"
+                "当前为模拟模式，未执行真实下单。"
+            )
+            self.logger().info(message)
+            self.notify(message)
+            return create_actions
+
         create_actions.append(
             CreateExecutorAction(
                 executor_config=PositionExecutorConfig(
@@ -784,6 +793,15 @@ def create_actions_proposal(self) -> List[CreateExecutorAction]:
         )
     elif signal == -1 and self.config.trade_direction == "SHORT":
         # 做空信号，且策略允许做空
+        if not self.config.is_live_trading:
+            message = (
+                f"检测到做空信号 (交易对: {self.config.trading_pair}, 价格: {mid_price:.4f})，"
+                "当前为模拟模式，未执行真实下单。"
+            )
+            self.logger().info(message)
+            self.notify(message)
+            return create_actions
+
         create_actions.append(
             CreateExecutorAction(
                 executor_config=PositionExecutorConfig(
@@ -849,35 +867,49 @@ mid_price = self.market_data_provider.get_price_by_type(
 
 `PriceType.MidPrice` = (最佳买价 + 最佳卖价) / 2
 
-**步骤 4：创建执行器动作**
+**步骤 4：根据模式决定是否创建执行器**
 
 ```python
-CreateExecutorAction(
-    executor_config=PositionExecutorConfig(
-        timestamp=self.current_timestamp,           # 当前时间戳
-        connector_name=self.config.exchange,        # 交易所
-        trading_pair=self.config.trading_pair,      # 交易对
-        side=TradeType.BUY,                        # 买入（做多）
-        entry_price=mid_price,                     # 入场价格
-        amount=self.config.order_amount_quote / mid_price,  # 数量
-        triple_barrier_config=self.config.triple_barrier_config,  # 止盈止损
-        leverage=self.config.leverage,             # 杠杆
+if signal == 1 and self.config.trade_direction == "LONG":
+    if not self.config.is_live_trading:
+        message = (
+            f"检测到做多信号 (交易对: {self.config.trading_pair}, 价格: {mid_price:.4f})，"
+            "当前为模拟模式，未执行真实下单。"
+        )
+        self.logger().info(message)
+        self.notify(message)
+        return create_actions
+
+    create_actions.append(
+        CreateExecutorAction(
+            executor_config=PositionExecutorConfig(
+                timestamp=self.current_timestamp,
+                connector_name=self.config.exchange,
+                trading_pair=self.config.trading_pair,
+                side=TradeType.BUY,
+                entry_price=mid_price,
+                amount=self.config.order_amount_quote / mid_price,
+                triple_barrier_config=self.config.triple_barrier_config,
+                leverage=self.config.leverage,
+            )
+        )
     )
-)
 ```
 
-**amount 计算**：
+做空逻辑与之镜像。模拟模式直接返回空列表，避免误下单；仅在 `is_live_trading = true` 时才会交由执行器处理真实订单。
+
+**amount 计算示例**：
 
 ```python
 # 假设
-order_amount_quote = 10 USDT
-mid_price = 50000 USDT
+order_amount_quote = Decimal("10")
+mid_price = Decimal("50000")
 
-# 计算数量
-amount = 10 / 50000 = 0.0002 BTC
+# 计算下单数量（名义持仓 = 数量 × 价格）
+amount = order_amount_quote / mid_price  # 0.0002 BTC
 
-# 实际持仓价值（考虑杠杆）
-position_value = 0.0002 × 50000 × 20 = 200 USDT
+# 杠杆 50x 时的名义持仓规模
+notional = amount * mid_price * self.config.leverage  # 0.0002 × 50000 × 50 = 500 USDT
 ```
 
 ---
@@ -890,7 +922,7 @@ position_value = 0.0002 × 50000 × 20 = 200 USDT
 def get_signal(self, connector_name: str, trading_pair: str) -> Optional[int]:
     """
     获取交易信号
-    
+
     Returns:
         1: 做多信号 (三连阳)
         -1: 做空信号 (三连阴)
@@ -899,26 +931,70 @@ def get_signal(self, connector_name: str, trading_pair: str) -> Optional[int]:
     try:
         # 获取 K 线数据
         candles = self.market_data_provider.get_candles_df(
-            connector_name, 
-            trading_pair, 
-            self.config.candles_interval, 
-            self.config.candles_length
+            connector_name, trading_pair, self.config.candles_interval, self.config.candles_length
         )
-        
+
         if candles is None or len(candles) < 3:
             # K 线数据不足
             return None
-        
+
+        candles = candles.copy()
+
+        candles_interval_seconds = None
+        try:
+            candles_feed = self.market_data_provider.get_candles_feed(
+                CandlesConfig(
+                    connector=connector_name,
+                    trading_pair=trading_pair,
+                    interval=self.config.candles_interval,
+                    max_records=self.config.candles_length,
+                )
+            )
+            candles_interval_seconds = getattr(candles_feed, "interval_in_seconds", None)
+        except Exception:
+            # 无法获取蜡烛图周期时忽略，使用退化方案
+            candles_interval_seconds = None
+
+        if "timestamp" in candles.columns and candles_interval_seconds:
+            timestamps = candles["timestamp"].astype(float)
+            # 处理毫秒级时间戳
+            if timestamps.max() > 1e12:
+                timestamps = timestamps / 1000
+
+            current_time = int(self.current_timestamp)
+            interval_start = current_time - (current_time % candles_interval_seconds)
+            candles = candles.loc[timestamps < interval_start]
+        else:
+            # 无法准确定位当前 K 线时，直接移除最后一根
+            candles = candles.iloc[:-1]
+
+        if candles is None or len(candles) < 3:
+            return None
+
+        last_3 = candles.tail(3)
+        opens = last_3["open"].values
+        closes = last_3["close"].values
+        candle_lines = "\n".join(
+            [f"  #{index + 1}: open={opens[index]:.4f}, close={closes[index]:.4f}" for index in range(3)]
+        )
+        self.logger().info(
+            "最近 3 根 K 线数据 (%s %s %s):\n%s",
+            connector_name,
+            trading_pair,
+            self.config.candles_interval,
+            candle_lines,
+        )
+
         # 检查三连阳 (做多信号)
         if self.check_three_bullish_candles(candles):
             return 1
-        
+
         # 检查三连阴 (做空信号)
         if self.check_three_bearish_candles(candles):
             return -1
-        
+
         return None
-        
+
     except Exception as e:
         self.logger().error(f"获取信号时发生错误: {e}")
         return None
@@ -928,12 +1004,21 @@ def get_signal(self, connector_name: str, trading_pair: str) -> Optional[int]:
 
 ```python
 # candles 是一个 Pandas DataFrame
-#          timestamp    open    high     low   close   volume
-# 0  1640000000000  50000  50500  49500  50200  1000.5
-# 1  1640003600000  50200  50800  50100  50600   950.3
-# 2  1640007200000  50600  51000  50500  50900   890.7
+#          timestamp    open    high     low    close   volume
+# 0  1700000000.0   50000  50500  49500  50200  1000.5
+# 1  1700003600.0   50200  50800  50100  50600   950.3
+# 2  1700007200.0   50600  51000  50500  50900   890.7
 # ...
 ```
+
+**关键步骤解析**：
+
+1. **复制 DataFrame**：调用 `candles.copy()`，避免后续裁剪操作影响缓存中的原始数据。
+2. **移除未完成 K 线**：
+   - 当能获取 `interval_in_seconds` 时，通过当前时间戳对齐区间，仅保留在最新完整区间之前的记录。
+   - 若无法确认周期，则使用退化策略 `candles.iloc[:-1]` 直接丢弃最后一根 K 线。
+3. **记录调试信息**：格式化最近 3 根 K 线的开收盘价，写入日志，便于在日志中快速验证信号来源。
+4. **分支判断**：依次调用 `check_three_bullish_candles` 与 `check_three_bearish_candles`，返回对应信号；若均不满足则返回 `None`。
 
 **异常处理**：
 
@@ -960,116 +1045,48 @@ def check_three_bullish_candles(self, candles) -> bool:
     """
     if len(candles) < 3:
         return False
-    
-    # 获取最近 3 根 K 线
-    last_3 = candles.tail(3)
+
+    # 获取最近 3 根已完成 K 线
+    last_3 = candles.tail(3).dropna(subset=["open", "close"])
+    if len(last_3) < 3:
+        return False
     opens = last_3["open"].values
     closes = last_3["close"].values
-    
-    # 条件 1: 都是阳线
-    for i in range(3):
-        if closes[i] <= opens[i]:
-            return False
-    
-    # 条件 2: 实体幅度达标
-    for i in range(3):
-        body_pct = (closes[i] - opens[i]) / opens[i]
-        if body_pct < float(self.config.min_candle_body_pct):
-            return False
-    
-    # 条件 3: 收盘价递增
-    if not (closes[2] > closes[1] > closes[0]):
-        return False
-    
-    # 条件 4: 开盘价递增
-    if not (opens[2] > opens[1] > opens[0]):
-        return False
-    
-    return True
+
+    min_body_pct = float(self.config.min_candle_body_pct)
+    bullish_flags = [closes[i] > opens[i] for i in range(3)]
+    body_pcts = [(closes[i] - opens[i]) / opens[i] for i in range(3)]
+    body_flags = [body_pcts[i] >= min_body_pct for i in range(3)]
+    closes_increasing = closes[0] < closes[1] < closes[2]
+    opens_increasing = opens[0] < opens[1] < opens[2]
+
+    bullish_condition = all(bullish_flags)
+    body_condition = all(body_flags)
+    result = bullish_condition and body_condition and closes_increasing and opens_increasing
+
+    self.logger().info(
+        "三连阳判定结果: %s\n  阳线达标: %s\n  实体达标: %s\n  收盘递增: %s\n  开盘递增: %s",
+        result,
+        bullish_condition,
+        body_condition,
+        closes_increasing,
+        opens_increasing,
+    )
+
+    return result
 ```
 
 **逐步解析**：
 
-**1. 获取最近 3 根 K 线**
+1. **保证数据完整**：`dropna(subset=["open", "close"])` 防止缺失值干扰判定。
+2. **计算布尔标记**：
+   - `bullish_flags` 表示每根 K 线是否收阳。
+   - `body_flags` 检查实体百分比是否达到阈值。
+3. **趋势判断**：`closes_increasing` 和 `opens_increasing` 保证上涨动能持续。
+4. **日志追踪**：将各条件和最终结果写入日志，便于调试与复盘。
+5. **返回结果**：仅当所有条件同时满足时才返回 `True`，否则返回 `False`。
 
-```python
-last_3 = candles.tail(3)
-# tail(3) 获取最后 3 行
-
-opens = last_3["open"].values
-closes = last_3["close"].values
-# 提取开盘价和收盘价列，转换为 NumPy 数组
-
-# 结果：
-# opens = [50000, 50200, 50600]
-# closes = [50200, 50600, 50900]
-# 索引：    [0]     [1]     [2]
-```
-
-**2. 检查都是阳线**
-
-```python
-for i in range(3):
-    if closes[i] <= opens[i]:
-        return False
-
-# 检查每根 K 线：
-# 第 0 根：closes[0](50200) > opens[0](50000) ✓
-# 第 1 根：closes[1](50600) > opens[1](50200) ✓
-# 第 2 根：closes[2](50900) > opens[2](50600) ✓
-```
-
-**3. 检查实体幅度**
-
-```python
-for i in range(3):
-    body_pct = (closes[i] - opens[i]) / opens[i]
-    if body_pct < float(self.config.min_candle_body_pct):
-        return False
-
-# 计算每根 K 线的实体幅度：
-# 第 0 根：(50200 - 50000) / 50000 = 0.004 = 0.4%
-# 第 1 根：(50600 - 50200) / 50200 = 0.008 = 0.8%
-# 第 2 根：(50900 - 50600) / 50600 = 0.006 = 0.6%
-
-# 假设 min_candle_body_pct = 0.001 (0.1%)
-# 都满足条件 ✓
-```
-
-**4. 检查收盘价递增**
-
-```python
-if not (closes[2] > closes[1] > closes[0]):
-    return False
-
-# 检查：50900 > 50600 > 50200 ✓
-```
-
-**5. 检查开盘价递增**
-
-```python
-if not (opens[2] > opens[1] > opens[0]):
-    return False
-
-# 检查：50600 > 50200 > 50000 ✓
-```
-
-**K 线形态可视化**：
-
-```
-价格
-^
-|     ┌─┐
-|     │3│ ← 第 2 根（最新）: open=50600, close=50900
-|   ┌─┼─┤
-|   │2│ │ ← 第 1 根: open=50200, close=50600
-| ┌─┼─┤ │
-| │1│ │ │ ← 第 0 根（最早）: open=50000, close=50200
-| └─┴─┴─┘
-└─────────> 时间
-```
-
-所有条件都满足，返回 `True`，生成做多信号。
+当其中任意条件失败，策略会记录日志并返回 `False`，因此不会生成做多信号。
 
 ---
 
@@ -1084,31 +1101,35 @@ def check_three_bearish_candles(self, candles) -> bool:
     """
     if len(candles) < 3:
         return False
-    
-    last_3 = candles.tail(3)
+
+    # 获取最近 3 根已完成 K 线
+    last_3 = candles.tail(3).dropna(subset=["open", "close"])
+    if len(last_3) < 3:
+        return False
     opens = last_3["open"].values
     closes = last_3["close"].values
-    
-    # 条件 1: 都是阴线（收盘价 < 开盘价）
-    for i in range(3):
-        if closes[i] >= opens[i]:
-            return False
-    
-    # 条件 2: 实体幅度达标（开盘价 - 收盘价）
-    for i in range(3):
-        body_pct = (opens[i] - closes[i]) / opens[i]
-        if body_pct < float(self.config.min_candle_body_pct):
-            return False
-    
-    # 条件 3: 收盘价递减
-    if not (closes[2] < closes[1] < closes[0]):
-        return False
-    
-    # 条件 4: 开盘价递减
-    if not (opens[2] < opens[1] < opens[0]):
-        return False
-    
-    return True
+
+    min_body_pct = float(self.config.min_candle_body_pct)
+    bearish_flags = [closes[i] < opens[i] for i in range(3)]
+    body_pcts = [(opens[i] - closes[i]) / opens[i] for i in range(3)]
+    body_flags = [body_pcts[i] >= min_body_pct for i in range(3)]
+    closes_decreasing = closes[0] > closes[1] > closes[2]
+    opens_decreasing = opens[0] > opens[1] > opens[2]
+
+    bearish_condition = all(bearish_flags)
+    body_condition = all(body_flags)
+    result = bearish_condition and body_condition and closes_decreasing and opens_decreasing
+
+    self.logger().info(
+        "三连阴判定结果: %s\n  阴线达标: %s\n  实体达标: %s\n  收盘递减: %s\n  开盘递减: %s",
+        result,
+        bearish_condition,
+        body_condition,
+        closes_decreasing,
+        opens_decreasing,
+    )
+
+    return result
 ```
 
 ---

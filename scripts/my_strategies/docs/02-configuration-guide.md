@@ -29,6 +29,9 @@ position_mode: ONEWAY
 # ========== 风险管理参数 ==========
 stop_loss: 0.02
 take_profit: 0.015
+
+# ========== 实盘控制 ==========
+is_live_trading: false
 ```
 
 配置分为四个主要部分：
@@ -37,6 +40,8 @@ take_profit: 0.015
 2. K 线数据源配置
 3. 策略参数
 4. 风险管理参数
+
+> ✅ **自动补全**：如果在 YAML 中未显式声明 `candles_config`，策略会在初始化阶段自动创建一份与上述字段一致的 `CandlesConfig`，确保数据订阅正确无误。
 
 ---
 
@@ -281,6 +286,8 @@ candles_length: 30
 # 如果要添加更长周期指标（如 MA200）
 candles_length: 210
 ```
+
+> ℹ️ **内部机制**：`get_signal` 会在计算前复制并裁剪数据帧，确保只使用已经闭合的 K 线。如果无法确认当前周期，策略会自动丢弃最后一根，避免因半成品蜡烛导致误判。
 
 ---
 
@@ -605,6 +612,7 @@ position_mode: HEDGE
 - 本策略当前主要设计为 ONEWAY 模式
 - 使用 HEDGE 模式需要修改策略逻辑
 - 新手强烈建议使用 ONEWAY
+- 策略启动时会自动调用交易所连接器设置持仓模式和杠杆，确保账户权限允许这些操作
 
 ---
 
@@ -811,6 +819,43 @@ take_profit: 0.06
 # 第三目标：3%，平仓 20%
 # 优点：锁定部分利润，保留趋势空间
 ```
+
+---
+
+## 实盘控制参数
+
+### is_live_trading
+
+**类型**：`bool`
+
+**说明**：是否执行真实下单。
+
+**默认值**：`false`
+
+**工作机制**：
+
+1. `false`（默认）：策略处于模拟模式，只会在日志和通知中提示检测到信号，不会向交易所发送真实订单。
+2. `true`：策略会在满足信号条件时创建 `CreateExecutorAction`，由执行器负责真实下单和平仓。
+
+```python
+if signal == 1 and self.config.trade_direction == "LONG":
+    if not self.config.is_live_trading:
+        message = (
+            f"检测到做多信号 (交易对: {self.config.trading_pair}, 价格: {mid_price:.4f})，"
+            "当前为模拟模式，未执行真实下单。"
+        )
+        self.logger().info(message)
+        self.notify(message)
+        return create_actions
+```
+
+> ⚠️ **风险提示**：启用实盘前，请在测试网或低仓位环境中充分验证配置与信号，否则可能因误设参数导致意外下单。
+
+**使用建议**：
+
+- 在初次部署或调参阶段保持 `false`，便于观察日志与状态面板输出。
+- 确认策略逻辑、API 配置、资金规模均正确后，再将其设为 `true` 并重新加载配置。
+- 实盘开启后可借助 Hummingbot 通知系统（如 Discord、Telegram 集成）监控信号执行情况。
 
 ---
 
@@ -1076,6 +1121,7 @@ exchange: binance_perpetual
 - [ ] 单笔最大亏损在可承受范围内
 - [ ] candles_interval 与交易风格匹配
 - [ ] 已在测试环境验证配置
+- [ ] is_live_trading 已按预期设置（模拟 = false，实盘 = true）
 
 ### 5. 常见配置错误
 
