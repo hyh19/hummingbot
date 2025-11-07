@@ -41,8 +41,8 @@ class ThreeCandlesTrendConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = Field(default="ONEWAY")
 
     # 风险管理参数
-    stop_loss: Decimal = Field(default=Decimal("0.02"), gt=0)  # 止损 2%
-    take_profit: Decimal = Field(default=Decimal("0.015"), gt=0)  # 止盈 1.5%
+    stop_loss: Decimal = Field(default=Decimal("0.01"), gt=0)  # 止损 1%
+    take_profit: Decimal = Field(default=Decimal("0.02"), gt=0)  # 止盈 2%
 
     # 实盘控制
     is_live_trading: bool = Field(default=False)  # 是否执行真实下单
