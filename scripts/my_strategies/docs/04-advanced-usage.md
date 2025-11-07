@@ -430,7 +430,7 @@ param_grid = {
     'min_candle_body_pct': [0.001, 0.002, 0.005],
     'leverage': [10, 20, 50],
     'stop_loss': [Decimal('0.01'), Decimal('0.02'), Decimal('0.03')],
-    'take_profit': [Decimal('0.015'), Decimal('0.03'), Decimal('0.045')],
+    'take_profit': [Decimal('0.02'), Decimal('0.03'), Decimal('0.04')],
 }
 
 # 生成所有组合
@@ -1210,8 +1210,8 @@ candles_interval: 1h
 min_candle_body_pct: 0.002
 leverage: 20
 order_amount_quote: 50
-stop_loss: 0.02
-take_profit: 0.03
+stop_loss: 0.01
+take_profit: 0.02
 ```
 
 **结果**：
@@ -1220,7 +1220,7 @@ take_profit: 0.03
 |------|------|
 | 总交易次数 | 47 |
 | 胜率 | 55% |
-| 盈亏比 | 1.5:1 |
+| 盈亏比 | 2:1 |
 | 总收益率 | +28% |
 | 最大回撤 | -12% |
 | 夏普比率 | 1.8 |
@@ -1228,7 +1228,7 @@ take_profit: 0.03
 **关键经验**：
 
 1. 1小时周期信号质量好，假信号少
-2. 2% 止损在 BTC 市场较为合适
+2. 1% 止损在 BTC 市场较为合适
 3. 需要避免在横盘市场交易
 
 ---

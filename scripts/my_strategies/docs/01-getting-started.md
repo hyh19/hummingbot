@@ -91,8 +91,8 @@ leverage: 20                      # 杠杆倍数（源码默认 50，建议新�
 order_amount_quote: 10            # 每次开仓金额（USDT）
 
 # 风险管理
-stop_loss: 0.02                   # 止损 2%
-take_profit: 0.015                # 止盈 1.5%
+stop_loss: 0.01                   # 止损 1%
+take_profit: 0.02                 # 止盈 2%
 
 # 实盘控制
 is_live_trading: false            # false = 模拟模式，不会真实下单
@@ -105,8 +105,8 @@ is_live_trading: false            # false = 模拟模式，不会真实下单
 ```yaml
 leverage: 10                      # 使用较低杠杆
 order_amount_quote: 10            # 小额测试
-stop_loss: 0.03                   # 稍大的止损空间
-take_profit: 0.02                 # 稍大的止盈空间
+stop_loss: 0.015                  # 稍大的止损空间
+take_profit: 0.03                 # 稍大的止盈空间
 ```
 
 > ℹ️ **提示**：策略启动后会自动将所有永续交易对调整为 `position_mode`（默认 `ONEWAY`）并设定杠杆倍数，因此如果您在交易所后台手动修改，需在重启策略前同步更新配置。
@@ -169,8 +169,8 @@ leverage: 20
 order_amount_quote: 10
 position_mode: ONEWAY
 
-stop_loss: 0.02                   # 2% 止损
-take_profit: 0.015                # 1.5% 止盈
+stop_loss: 0.01                   # 1% 止损
+take_profit: 0.02                 # 2% 止盈
 ```
 
 **适用场景**：BTC 处于上升趋势，希望捕捉日内上涨机会
@@ -285,9 +285,9 @@ take_profit: 0.04                 # 4% 更大止盈目标
 
 例如：
 
-- 开仓价 100 USDT，做多，stop_loss=0.02，take_profit=0.015
-- 止损价：100 × (1 - 0.02) = 98 USDT
-- 止盈价：100 × (1 + 0.015) = 101.5 USDT
+- 开仓价 100 USDT，做多，stop_loss=0.01，take_profit=0.02
+- 止损价：100 × (1 - 0.01) = 99 USDT
+- 止盈价：100 × (1 + 0.02) = 102 USDT
 
 ---
 
@@ -297,7 +297,7 @@ take_profit: 0.04                 # 4% 更大止盈目标
 
 1. **增加 K 线周期**：从 15m 改为 1h 或 4h
 2. **提高实体幅度阈值**：从 0.001 增加到 0.002 或 0.005
-3. **使用更大的止损空间**：从 0.02 增加到 0.03
+3. **使用更大的止损空间**：从 0.01 增加到 0.015
 4. **选择趋势明显的市场**：避免在震荡市场中使用
 
 ---

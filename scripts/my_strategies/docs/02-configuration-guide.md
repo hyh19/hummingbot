@@ -27,8 +27,8 @@ order_amount_quote: 10
 position_mode: ONEWAY
 
 # ========== 风险管理参数 ==========
-stop_loss: 0.02
-take_profit: 0.015
+stop_loss: 0.01
+take_profit: 0.02
 
 # ========== 实盘控制 ==========
 is_live_trading: false
@@ -460,13 +460,13 @@ graph LR
 # 配置示例
 leverage: 20
 order_amount_quote: 100
-stop_loss: 0.02
-take_profit: 0.015
+stop_loss: 0.01
+take_profit: 0.02
 
 # 计算：
 # 持仓价值 = 100 × 20 = 2,000 USDT
-# 止损亏损 = 2,000 × 0.02 = 40 USDT（本金的 40%）
-# 止盈盈利 = 2,000 × 0.015 = 30 USDT（本金的 30%）
+# 止损亏损 = 2,000 × 0.01 = 20 USDT（本金的 20%）
+# 止盈盈利 = 2,000 × 0.02 = 40 USDT（本金的 40%）
 ```
 
 **⚠️ 关键警告**：
@@ -624,7 +624,7 @@ position_mode: HEDGE
 
 **说明**：止损百分比
 
-**默认值**：`0.02` (2%)
+**默认值**：`0.01` (1%)
 
 **有效范围**：`0.001` - `0.1` (0.1% - 10%)
 
@@ -639,10 +639,10 @@ stop_loss_price = entry_price × (1 + stop_loss)
 
 # 示例：
 entry_price = 50000 USDT
-stop_loss = 0.02  # 2%
+stop_loss = 0.01  # 1%
 
-# 做多止损价 = 50000 × (1 - 0.02) = 49000 USDT
-# 做空止损价 = 50000 × (1 + 0.02) = 51000 USDT
+# 做多止损价 = 50000 × (1 - 0.01) = 49500 USDT
+# 做空止损价 = 50000 × (1 + 0.01) = 50500 USDT
 ```
 
 **不同杠杆的止损建议**：
@@ -734,7 +734,7 @@ graph TD
 
 **说明**：止盈百分比
 
-**默认值**：`0.015` (1.5%)
+**默认值**：`0.02` (2%)
 
 **有效范围**：`0.001` - `0.1` (0.1% - 10%)
 
@@ -749,10 +749,10 @@ take_profit_price = entry_price × (1 - take_profit)
 
 # 示例：
 entry_price = 50000 USDT
-take_profit = 0.015  # 1.5%
+take_profit = 0.02  # 2%
 
-# 做多止盈价 = 50000 × (1 + 0.015) = 50750 USDT
-# 做空止盈价 = 50000 × (1 - 0.015) = 49250 USDT
+# 做多止盈价 = 50000 × (1 + 0.02) = 51000 USDT
+# 做空止盈价 = 50000 × (1 - 0.02) = 49000 USDT
 ```
 
 **盈亏比设置**：
@@ -1041,7 +1041,7 @@ trade_direction: BOTH  # 错误：不支持双向
 # 在 Field 定义中使用 gt (greater than)
 leverage: int = Field(default=50, gt=0)
 order_amount_quote: Decimal = Field(default=Decimal("10"), gt=0)
-stop_loss: Decimal = Field(default=Decimal("0.02"), gt=0)
+stop_loss: Decimal = Field(default=Decimal("0.01"), gt=0)
 ```
 
 **作用**：
@@ -1095,7 +1095,7 @@ exchange: binance_perpetual
 
 ### 2024-01-15
 - 初始配置
-- leverage: 50, stop_loss: 0.02, take_profit: 0.015
+- leverage: 50, stop_loss: 0.01, take_profit: 0.02
 - 结果：频繁止损，胜率 30%
 
 ### 2024-01-17

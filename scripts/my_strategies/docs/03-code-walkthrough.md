@@ -248,8 +248,8 @@ Decimal('0.3')
 #### 5. 风险管理参数
 
 ```python
-stop_loss: Decimal = Field(default=Decimal("0.02"), gt=0)
-take_profit: Decimal = Field(default=Decimal("0.015"), gt=0)
+stop_loss: Decimal = Field(default=Decimal("0.01"), gt=0)
+take_profit: Decimal = Field(default=Decimal("0.02"), gt=0)
 ```
 
 ---
@@ -1355,15 +1355,15 @@ class ExecutorStrategy:
 ```python
 # 做多，入场价 50000
 entry_price = 50000
-stop_loss = 0.02     # 2%
-take_profit = 0.03   # 3%
+stop_loss = 0.01     # 1%
+take_profit = 0.02   # 2%
 
-# 止损价：50000 × (1 - 0.02) = 49000
-# 当价格跌到 49000 时，用市价单立即卖出
+# 止损价：50000 × (1 - 0.01) = 49500
+# 当价格跌到 49500 时，用市价单立即卖出
 
-# 止盈价：50000 × (1 + 0.03) = 51500
-# 当价格涨到 51500 时，挂限价单 51500 卖出
-# 如果市场继续上涨到 51600，仍然以 51500 成交（更好）
+# 止盈价：50000 × (1 + 0.02) = 51000
+# 当价格涨到 51000 时，挂限价单 51000 卖出
+# 如果市场继续上涨到 51200，仍然以 51000 成交（更好）
 ```
 
 ---
