@@ -17,7 +17,8 @@
 - min_price: 最低价，网格交易的价格区间下限
 - max_price: 最高价，网格交易的价格区间上限
 - num_grids: 网格数量 n，即买入订单的层级数量
-- num_groups: 分组数量（可选），将网格按顺序分成指定数量的分组（必须是网格数量的因数）
+- num_groups: 分组数量（默认 1），将网格按顺序分成指定数量的分组（必须是网格数量的因数）
+- group_ratio: 分组资金分配公比（默认 1 表示各组均分资金，group_ratio > 1 时倾向于给高价组更多资金，0 < group_ratio < 1 时倾向于给低价组更多资金）
 
 输出内容：
 ----------
@@ -27,13 +28,13 @@
 2. 买入网格详情：n 个网格的详细信息
    - 每个网格的价格
    - 每个网格投入的报价资产数量
-   - 每个网格购买的基础资产数量
+   - 每组内每个网格购买的基础资产数量
    - 如果指定了分组数量，会在每组网格后显示该组的汇总信息（资金总额、购买量）
 3. 汇总统计：
    - 总购买的基础资产数量
    - 总投入的报价资产数量
    - 平均价格（总投入资金 / 总购买的基础资产数量）
-4. 对比分析：等比数列相对于等差数列的优势
+4. 对比分析：等比数列与等差数列的购买量、平均价格与收益率对比
 
 使用方法：
 ----------
@@ -46,7 +47,8 @@
   --min-price, -m: 最低价（必需）
   --max-price, -M: 最高价（必需）
   --grids, -g: 网格数量（必需）
-  --groups, -G: 分组数量（可选），必须是网格数量的因数
+  --groups, -G: 分组数量（默认 1），必须是网格数量的因数
+  --group-ratio, -R: 资金分配公比（可选，> 0，默认 1 表示分组等额分配，group_ratio > 1 时高价组获得更多资金，0 < group_ratio < 1 时低价组获得更多资金）
   --output, -o: 输出文件路径（可选），如果未指定则根据命令行参数自动生成默认文件名
 
 示例：
@@ -73,9 +75,9 @@
 ----------
 脚本以 Markdown 格式输出以下部分：
 1. 输入参数摘要
-2. 等差数列网格计算结果（价格分布、买入详情、汇总）
-3. 等比数列网格计算结果（价格分布、买入详情、汇总）
-4. 两种网格类型的对比总结
+2. 等比数列网格计算结果（价格分布、买入详情、汇总）
+3. 等差数列网格计算结果（价格分布、买入详情、汇总）
+4. 两种网格类型的对比总结（购买量、平均价格与收益率）
 
 输出格式说明：
 - 所有输出均为 Markdown 格式，可直接保存为 .md 文件
@@ -86,7 +88,7 @@
 1. 价格分布点数量 = 网格数量 + 1（包括最低价和最高价）
 2. 买入网格数量 = 网格数量（最高价不包含买单）
 3. 所有买入网格的资金总和等于输入的资金总额
-4. 每个网格购买的基础资产数量相同（等差数列和等比数列分别相同）
+4. 每组内的网格购买的基础资产数量相同，不同组之间因资金分配比例而异
 5. 等比数列通常在相同资金下能购买更多的基础资产
 
 参考文档：
@@ -98,7 +100,7 @@
 """
 
 import argparse
-from typing import Tuple, List, Optional
+from typing import List
 from dataclasses import dataclass
 
 
@@ -124,9 +126,57 @@ class GridResult:
     total_quote_amount: float  # 总投入的报价资产数量
     average_price: float  # 平均价格 = 总投入资金 / 总购买的基础资产数量
     grid_returns: List[float]  # n 个网格的收益率（百分比），每个网格买入后到下一个价格点卖出的收益率
+    group_quote_totals: List[float]  # 每组的资金总额（报价资产）
+    group_base_amounts_per_grid: List[float]  # 每组中单个网格的基础资产购买量
 
 
-def calculate_arithmetic_grid(total_capital: float, min_price: float, max_price: float, num_grids: int) -> GridResult:
+def compute_group_quote_shares(
+    total_capital: float,
+    num_groups: int,
+    fund_ratio: float,
+) -> List[float]:
+    """
+    根据资金分配公比计算分组资金权重，并返回每组的资金配额。
+
+    参数：
+        total_capital: 总资金
+        num_groups: 分组数量
+        fund_ratio: 资金分配公比（> 0，fund_ratio > 1 时高价组资金更多，0 < fund_ratio < 1 时低价组资金更多）
+
+    返回：
+        长度为 num_groups 的列表，顺序与分组索引一致（从低价组到高价组）。
+        fund_ratio > 1 时列表随索引递增，0 < fund_ratio < 1 时列表随索引递减。
+        最后一项会进行浮点修正以确保份额之和等于 total_capital。
+    """
+    if num_groups <= 0:
+        raise ValueError("分组数量必须大于 0")
+
+    if num_groups == 1:
+        return [total_capital]
+
+    normalized_ratio = max(fund_ratio, 1e-12)
+
+    if abs(normalized_ratio - 1.0) < 1e-12:
+        shares = [total_capital / num_groups] * num_groups
+    else:
+        # fund_ratio > 1 时份额按索引递增，0 < fund_ratio < 1 时份额按索引递减
+        weights = [normalized_ratio**i for i in range(num_groups)]
+        weight_sum = sum(weights)
+        shares = [total_capital * weight / weight_sum for weight in weights]
+
+    current_total = sum(shares)
+    shares[-1] += total_capital - current_total
+    return shares
+
+
+def calculate_arithmetic_grid(
+    total_capital: float,
+    min_price: float,
+    max_price: float,
+    num_grids: int,
+    num_groups: int,
+    group_quote_shares: List[float],
+) -> GridResult:
     """
     计算等差数列网格
 
@@ -135,17 +185,18 @@ def calculate_arithmetic_grid(total_capital: float, min_price: float, max_price:
         min_price: 最低价
         max_price: 最高价
         num_grids: 网格数量 n
+        num_groups: 分组数量
+        group_quote_shares: 分组资金份额列表（长度为分组数量，顺序对应从低价组到高价组）
 
     返回：
         GridResult 对象
 
     说明：
         - 生成 n+1 个价格点（从最低价到最高价）
-        - 只在 n 个层级买入（不包括最高价）
-        - 计算逻辑：先计算买入层级的价格总和，然后根据总资金和价格总和计算每层购买量
-        每层购买量 = 总资金 / 价格总和
-        其中价格总和使用等差数列前 n 项和公式：S = n × (首项 + 末项) / 2
-        注意：这里的末项是买入层级的最高价，不是价格分布的最高价
+        - 只在前 n 个层级买入（不包括最高价）
+        - 将总资金按分组资金份额进行分配，每组共享统一的价格分布点
+        - 在每组内，根据该组买入价格的总和计算单个网格的基础资产购买量
+        - 每组内的网格购买量一致，不同组之间的购买量根据资金份额不同而变化
     """
     # 计算价格差（基于 n 个买入层级）
     # 价格分布为 n+1 个点，从 P_min 到 P_max
@@ -164,30 +215,40 @@ def calculate_arithmetic_grid(total_capital: float, min_price: float, max_price:
     # 买入层级：前 n 个价格点（不包括最高价）
     buy_prices = price_points[:num_grids]
 
-    # 买入层级的最高价
-    buy_max_price = buy_prices[-1]
+    if len(group_quote_shares) != num_groups:
+        raise ValueError("group_quote_shares 的长度必须等于分组数量")
 
-    # 计算买入层级的价格总和
-    # 这是等差数列前 n 项的和：S = n * (首项 + 末项) / 2
-    price_sum = num_grids * (min_price + buy_max_price) / 2
+    if abs(sum(group_quote_shares) - total_capital) > 1e-6:
+        raise ValueError("group_quote_shares 的总和必须等于总资金")
 
-    # 计算每层购买的基础资产数量
-    # 原理：每个网格购买相同数量的基础资产，设每层购买量为 A
-    # 则总资金 M = A × (P_1 + P_2 + ... + P_n) = A × price_sum
-    # 因此：每层购买量 A = 总资金 / 价格总和
-    base_amount_per_grid = total_capital / price_sum
+    grids_per_group = num_grids // num_groups
 
-    # 计算每个网格投入的报价资产数量和购买的基础资产数量
-    quote_amounts = [base_amount_per_grid * price for price in buy_prices]
-    base_amounts = [base_amount_per_grid] * num_grids
+    quote_amounts: List[float] = []
+    base_amounts: List[float] = []
+    group_quote_totals: List[float] = []
+    group_base_amounts_per_grid: List[float] = []
 
-    # 计算总购买量
-    total_base_amount = num_grids * base_amount_per_grid
+    for group_idx in range(num_groups):
+        start_idx = group_idx * grids_per_group
+        end_idx = start_idx + grids_per_group
+        group_prices = buy_prices[start_idx:end_idx]
 
-    # 计算总投入资金
-    total_quote_amount = sum(quote_amounts)
+        group_quote_share = group_quote_shares[group_idx]
+
+        # 每组的价格分布点与大网格一致，按组内价格总和分配基础资产
+        price_sum_group = sum(group_prices)
+        base_amount_per_grid_group = group_quote_share / price_sum_group if price_sum_group > 0 else 0.0
+
+        for price in group_prices:
+            base_amounts.append(base_amount_per_grid_group)
+            quote_amounts.append(base_amount_per_grid_group * price)
+
+        group_quote_totals.append(group_quote_share)
+        group_base_amounts_per_grid.append(base_amount_per_grid_group)
 
     # 计算平均价格
+    total_quote_amount = sum(quote_amounts)
+    total_base_amount = sum(base_amounts)
     average_price = total_quote_amount / total_base_amount if total_base_amount > 0 else 0.0
 
     # 计算每个网格的收益率
@@ -209,10 +270,19 @@ def calculate_arithmetic_grid(total_capital: float, min_price: float, max_price:
         total_quote_amount=total_quote_amount,
         average_price=average_price,
         grid_returns=grid_returns,
+        group_quote_totals=group_quote_totals,
+        group_base_amounts_per_grid=group_base_amounts_per_grid,
     )
 
 
-def calculate_geometric_grid(total_capital: float, min_price: float, max_price: float, num_grids: int) -> GridResult:
+def calculate_geometric_grid(
+    total_capital: float,
+    min_price: float,
+    max_price: float,
+    num_grids: int,
+    num_groups: int,
+    group_quote_shares: List[float],
+) -> GridResult:
     """
     计算等比数列网格
 
@@ -221,18 +291,18 @@ def calculate_geometric_grid(total_capital: float, min_price: float, max_price: 
         min_price: 最低价
         max_price: 最高价
         num_grids: 网格数量 n
+        num_groups: 分组数量
+        group_quote_shares: 分组资金份额列表（长度为分组数量，顺序对应从低价组到高价组）
 
     返回：
         GridResult 对象
 
     说明：
         - 生成 n+1 个价格点（从最低价到最高价）
-        - 只在 n 个层级买入（不包括最高价）
-        - 计算逻辑：先计算买入层级的价格总和，然后根据总资金和价格总和计算每层购买量
-        每层购买量 = 总资金 / 价格总和
-        其中价格总和使用等比数列前 n 项和公式：S = P_min × (r^n - 1) / (r - 1)
-        其中 r 是买入层级的公比，r = (买入层级最高价 / P_min)^(1/(n-1))
-        注意：买入层级的最高价是价格分布的第 n 个点，不是最高价
+        - 只在前 n 个层级买入（不包括最高价）
+        - 将总资金按分组资金份额进行分配，列表顺序对应从低价组到高价组
+        - 在每组内，根据该组买入价格的总和计算单个网格的基础资产购买量
+        - 每组内的网格购买量一致，不同组之间的购买量根据资金份额不同而变化
     """
     # 计算公比
     # 价格分布有 n+1 个点，买入层级有 n 个点
@@ -251,42 +321,40 @@ def calculate_geometric_grid(total_capital: float, min_price: float, max_price: 
     # 买入层级：前 n 个价格点（不包括最高价）
     buy_prices = price_points[:num_grids]
 
-    # 买入层级的最高价
-    buy_max_price = buy_prices[-1]
+    if len(group_quote_shares) != num_groups:
+        raise ValueError("group_quote_shares 的长度必须等于分组数量")
 
-    # 计算买入层级的公比（基于 n 个买入层级）
-    # 买入层级从 P_min 到 buy_max_price，共 n 个点
-    # 公比 r_buy = (buy_max_price / P_min)^(1/(n-1))
-    if num_grids > 1:
-        ratio_buy = (buy_max_price / min_price) ** (1.0 / (num_grids - 1))
-    else:
-        ratio_buy = 1.0
+    if abs(sum(group_quote_shares) - total_capital) > 1e-6:
+        raise ValueError("group_quote_shares 的总和必须等于总资金")
 
-    # 计算买入层级的价格总和
-    # 这是等比数列前 n 项的和：S = P_min * (r^n - 1) / (r - 1)
-    if abs(ratio_buy - 1.0) < 1e-10:
-        # 如果公比接近 1，使用等差数列近似
-        price_sum = num_grids * min_price
-    else:
-        price_sum = min_price * (ratio_buy**num_grids - 1) / (ratio_buy - 1)
+    grids_per_group = num_grids // num_groups
 
-    # 计算每层购买的基础资产数量
-    # 原理：每个网格购买相同数量的基础资产，设每层购买量为 B
-    # 则总资金 M = B × (P_1 + P_2 + ... + P_n) = B × price_sum
-    # 因此：每层购买量 B = 总资金 / 价格总和
-    base_amount_per_grid = total_capital / price_sum
+    quote_amounts: List[float] = []
+    base_amounts: List[float] = []
+    group_quote_totals: List[float] = []
+    group_base_amounts_per_grid: List[float] = []
 
-    # 计算每个网格投入的报价资产数量和购买的基础资产数量
-    quote_amounts = [base_amount_per_grid * price for price in buy_prices]
-    base_amounts = [base_amount_per_grid] * num_grids
+    for group_idx in range(num_groups):
+        start_idx = group_idx * grids_per_group
+        end_idx = start_idx + grids_per_group
+        group_prices = buy_prices[start_idx:end_idx]
 
-    # 计算总购买量
-    total_base_amount = num_grids * base_amount_per_grid
+        group_quote_share = group_quote_shares[group_idx]
 
-    # 计算总投入资金
-    total_quote_amount = sum(quote_amounts)
+        # 每组沿用原有价格点，根据组内价格总和分配基础资产
+        price_sum_group = sum(group_prices)
+        base_amount_per_grid_group = group_quote_share / price_sum_group if price_sum_group > 0 else 0.0
+
+        for price in group_prices:
+            base_amounts.append(base_amount_per_grid_group)
+            quote_amounts.append(base_amount_per_grid_group * price)
+
+        group_quote_totals.append(group_quote_share)
+        group_base_amounts_per_grid.append(base_amount_per_grid_group)
 
     # 计算平均价格
+    total_quote_amount = sum(quote_amounts)
+    total_base_amount = sum(base_amounts)
     average_price = total_quote_amount / total_base_amount if total_base_amount > 0 else 0.0
 
     # 计算每个网格的收益率
@@ -308,6 +376,8 @@ def calculate_geometric_grid(total_capital: float, min_price: float, max_price: 
         total_quote_amount=total_quote_amount,
         average_price=average_price,
         grid_returns=grid_returns,
+        group_quote_totals=group_quote_totals,
+        group_base_amounts_per_grid=group_base_amounts_per_grid,
     )
 
 
@@ -331,8 +401,8 @@ def calculate_group_stats(grid_result: GridResult, num_groups: int) -> List[Grou
         end_idx = start_idx + grids_per_group
 
         # 计算该组的资金总额和购买量
-        group_quote_amount = sum(grid_result.quote_amounts[start_idx:end_idx])
-        group_base_amount = sum(grid_result.base_amounts[start_idx:end_idx])
+        group_quote_amount = grid_result.group_quote_totals[group_idx]
+        group_base_amount = grid_result.group_base_amounts_per_grid[group_idx] * grids_per_group
 
         group_stats.append(
             GroupStats(
@@ -351,7 +421,8 @@ def generate_default_filename(
     min_price: float,
     max_price: float,
     num_grids: int,
-    num_groups: Optional[int] = None,
+    num_groups: int = 1,
+    fund_ratio: float = 1.0,
 ) -> str:
     """
     根据命令行参数生成默认文件名
@@ -362,7 +433,8 @@ def generate_default_filename(
         min_price: 最低价
         max_price: 最高价
         num_grids: 网格数量
-        num_groups: 分组数量（可选）
+        num_groups: 分组数量
+        fund_ratio: 资金分配公比
 
     返回：
         文件名（全小写+下划线格式，扩展名为 .md）
@@ -379,9 +451,11 @@ def generate_default_filename(
         f"grids_{num_grids}",
     ]
 
-    # 如果有分组，添加分组信息
-    if num_groups is not None:
+    # 如果分组数量大于 1，添加分组信息
+    if num_groups > 1:
         parts.append(f"groups_{num_groups}")
+    if abs(fund_ratio - 1.0) > 1e-12:
+        parts.append(f"group_ratio_{fund_ratio:.4f}".replace(".", "_"))
 
     # 组合文件名
     filename = "_".join(parts) + ".md"
@@ -396,7 +470,8 @@ def format_output(
     num_grids: int,
     arithmetic_result: GridResult,
     geometric_result: GridResult,
-    num_groups: Optional[int] = None,
+    num_groups: int = 1,
+    fund_ratio: float = 1.0,
 ) -> str:
     """
     格式化输出结果为 Markdown 格式
@@ -409,7 +484,8 @@ def format_output(
         num_grids: 网格数量
         arithmetic_result: 等差数列网格结果
         geometric_result: 等比数列网格结果
-        num_groups: 分组数量（可选）
+        num_groups: 分组数量
+        fund_ratio: 资金分配公比
 
     返回：
         Markdown 格式的字符串
@@ -428,9 +504,9 @@ def format_output(
     lines.append(f"- **资金总额**: {total_capital:,.2f} {quote_asset}")
     lines.append(f"- **价格区间**: {min_price:,.2f} - {max_price:,.2f} {quote_asset}")
     lines.append(f"- **网格数量**: {num_grids}")
-    lines.append(f"- **价格分布点数量**: {num_grids + 1}")
-    if num_groups is not None:
+    if num_groups > 1:
         lines.append(f"- **分组数量**: {num_groups}（每组 {num_grids // num_groups} 个网格）")
+        lines.append(f"- **资金分配公比**: {fund_ratio:.4f}")
     lines.append("")
 
     # 输出等比数列网格结果
@@ -463,7 +539,7 @@ def format_output(
     )
 
     # 如果有分组，在表格中插入分组汇总
-    if num_groups is not None:
+    if num_groups > 1:
         geometric_group_stats = calculate_group_stats(geometric_result, num_groups)
         grids_per_group = len(geometric_result.buy_prices) // num_groups
         group_idx = 0
@@ -497,17 +573,31 @@ def format_output(
             lines.append(f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} |")
 
     # 合计行
-    lines.append(
-        f"| **合计** | | **{total_quote_check:,.4f}** | **{geometric_result.total_base_amount:,.8f}** | **{geometric_avg_return:,.2f}** |"
-    )
+    lines.append(f"| **合计** | | **{total_quote_check:,.4f}** | **{geometric_result.total_base_amount:,.8f}** | |")
     lines.append("")
 
     # 汇总统计
     lines.append("### 汇总统计")
     lines.append("")
+    lowest_geometric_price = (
+        geometric_result.buy_prices[0] if geometric_result.buy_prices else geometric_result.price_points[0]
+    )
+    potential_base_at_lowest_geometric = (
+        geometric_result.total_quote_amount / lowest_geometric_price if lowest_geometric_price > 0 else 0.0
+    )
+    geometric_base_diff = geometric_result.total_base_amount - potential_base_at_lowest_geometric
+    geometric_base_ratio = (
+        geometric_result.total_base_amount / potential_base_at_lowest_geometric * 100
+        if potential_base_at_lowest_geometric > 0
+        else 0.0
+    )
     lines.append(f"- **总购买量**: {geometric_result.total_base_amount:,.8f} {base_asset}")
-    lines.append(f"- **总投入资金**: {total_quote_check:,.2f} {quote_asset}")
+    lines.append(f"- **总投入资金**: {geometric_result.total_quote_amount:,.2f} {quote_asset}")
     lines.append(f"- **平均价格**: {geometric_result.average_price:,.4f} {quote_asset}/{base_asset}")
+    lines.append(f"- **最低价全仓购买量**: {potential_base_at_lowest_geometric:,.8f} {base_asset}")
+    lines.append(
+        f"- **与最低价全仓比较**: {geometric_base_diff:+,.8f} {base_asset}（实际为最低价全仓的 {geometric_base_ratio:,.2f}%）"
+    )
     lines.append(f"- **平均单网格收益率**: {geometric_avg_return:,.2f}%")
     lines.append("")
 
@@ -541,7 +631,7 @@ def format_output(
     )
 
     # 如果有分组，在表格中插入分组汇总
-    if num_groups is not None:
+    if num_groups > 1:
         arithmetic_group_stats = calculate_group_stats(arithmetic_result, num_groups)
         grids_per_group = len(arithmetic_result.buy_prices) // num_groups
         group_idx = 0
@@ -575,17 +665,31 @@ def format_output(
             lines.append(f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} |")
 
     # 合计行
-    lines.append(
-        f"| **合计** | | **{total_quote_check:,.4f}** | **{arithmetic_result.total_base_amount:,.8f}** | **{arithmetic_avg_return:,.2f}** |"
-    )
+    lines.append(f"| **合计** | | **{total_quote_check:,.4f}** | **{arithmetic_result.total_base_amount:,.8f}** | |")
     lines.append("")
 
     # 汇总统计
     lines.append("### 汇总统计")
     lines.append("")
+    lowest_arithmetic_price = (
+        arithmetic_result.buy_prices[0] if arithmetic_result.buy_prices else arithmetic_result.price_points[0]
+    )
+    potential_base_at_lowest_arithmetic = (
+        arithmetic_result.total_quote_amount / lowest_arithmetic_price if lowest_arithmetic_price > 0 else 0.0
+    )
+    arithmetic_base_diff = arithmetic_result.total_base_amount - potential_base_at_lowest_arithmetic
+    arithmetic_base_ratio = (
+        arithmetic_result.total_base_amount / potential_base_at_lowest_arithmetic * 100
+        if potential_base_at_lowest_arithmetic > 0
+        else 0.0
+    )
     lines.append(f"- **总购买量**: {arithmetic_result.total_base_amount:,.8f} {base_asset}")
-    lines.append(f"- **总投入资金**: {total_quote_check:,.2f} {quote_asset}")
+    lines.append(f"- **总投入资金**: {arithmetic_result.total_quote_amount:,.2f} {quote_asset}")
     lines.append(f"- **平均价格**: {arithmetic_result.average_price:,.4f} {quote_asset}/{base_asset}")
+    lines.append(f"- **最低价全仓购买量**: {potential_base_at_lowest_arithmetic:,.8f} {base_asset}")
+    lines.append(
+        f"- **与最低价全仓比较**: {arithmetic_base_diff:+,.8f} {base_asset}（实际为最低价全仓的 {arithmetic_base_ratio:,.2f}%）"
+    )
     lines.append(f"- **平均单网格收益率**: {arithmetic_avg_return:,.2f}%")
     lines.append("")
 
@@ -660,7 +764,7 @@ def main():
   - 资金总额：10000 USDT
   - 价格区间：1000-2000 USDT
   - 网格数量：10 个
-  - 输出：等差数列和等比数列两种网格的参数
+  - 输出：包含等比数列与等差数列的网格明细以及对比总结
 
 示例 2：计算 BTC-USDT 网格参数（带分组）
   python3 grid_calculator.py -p BTC-USDT -c 10000 -m 1000 -M 2000 -g 12 -G 4
@@ -691,17 +795,20 @@ def main():
 ----------
 脚本以 Markdown 格式输出以下内容：
 1. 输入参数摘要
-2. 等差数列网格：
+2. 等比数列网格：
    - 价格分布点（n+1 个）
-   - 买入网格详情（n 个网格的价格、投入资金、购买量）
+   - 买入网格详情（n 个网格的价格、投入资金、购买量与收益率）
    - 如果指定了分组，每组网格后会显示该组的汇总信息
-   - 总购买量和总投入资金
-3. 等比数列网格：
+   - 汇总统计（总购买量、总投入资金、平均价格、最低价全仓对比、平均单网格收益率）
+3. 等差数列网格：
    - 价格分布点（n+1 个）
-   - 买入网格详情（n 个网格的价格、投入资金、购买量）
+   - 买入网格详情（n 个网格的价格、投入资金、购买量与收益率）
    - 如果指定了分组，每组网格后会显示该组的汇总信息
-   - 总购买量和总投入资金
-4. 对比总结：两种网格类型的购买量对比
+   - 汇总统计（总购买量、总投入资金、平均价格、最低价全仓对比、平均单网格收益率）
+4. 对比总结：
+   - 购买量对比
+   - 平均价格对比
+   - 平均收益率对比
 
 输出格式：
 - 所有输出均为 Markdown 格式，可直接保存为 .md 文件
@@ -756,8 +863,15 @@ def main():
         "--groups",
         "-G",
         type=int,
-        default=None,
-        help="分组数量，将网格按顺序分成指定数量的分组（必须是网格数量的因数）",
+        default=1,
+        help="分组数量，将网格按顺序分成指定数量的分组（必须是网格数量的因数，默认 1）",
+    )
+    parser.add_argument(
+        "--group-ratio",
+        "-R",
+        type=float,
+        default=1.0,
+        help="资金分配公比（> 0，默认 1 表示分组等额分配，group_ratio > 1 时高价组获得更多资金，0 < group_ratio < 1 时低价组获得更多资金）",
     )
     parser.add_argument(
         "--output",
@@ -791,18 +905,37 @@ def main():
         return
 
     # 验证分组数量
-    if args.groups is not None:
-        if args.groups <= 0:
-            print("错误: 分组数量必须大于 0")
-            return
-        if args.grids % args.groups != 0:
-            print(f"错误: 分组数量 {args.groups} 必须是网格数量 {args.grids} 的因数")
-            return
+    if args.groups <= 0:
+        print("错误: 分组数量必须大于 0")
+        return
+    if args.grids % args.groups != 0:
+        print(f"错误: 分组数量 {args.groups} 必须是网格数量 {args.grids} 的因数")
+        return
+    if args.group_ratio is not None and args.group_ratio <= 0:
+        print("错误: 资金分配公比必须大于 0")
+        return
 
     # 计算两种网格
-    arithmetic_result = calculate_arithmetic_grid(args.capital, args.min_price, args.max_price, args.grids)
+    group_ratio = args.group_ratio if args.group_ratio is not None else 1.0
+    group_quote_shares = compute_group_quote_shares(args.capital, args.groups, group_ratio)
 
-    geometric_result = calculate_geometric_grid(args.capital, args.min_price, args.max_price, args.grids)
+    arithmetic_result = calculate_arithmetic_grid(
+        args.capital,
+        args.min_price,
+        args.max_price,
+        args.grids,
+        args.groups,
+        group_quote_shares,
+    )
+
+    geometric_result = calculate_geometric_grid(
+        args.capital,
+        args.min_price,
+        args.max_price,
+        args.grids,
+        args.groups,
+        group_quote_shares,
+    )
 
     # 生成 Markdown 输出
     markdown_output = format_output(
@@ -814,6 +947,7 @@ def main():
         arithmetic_result,
         geometric_result,
         args.groups,
+        args.group_ratio,
     )
 
     # 输出结果
@@ -829,6 +963,7 @@ def main():
             args.max_price,
             args.grids,
             args.groups,
+            group_ratio,
         )
 
     # 写入文件
