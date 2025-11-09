@@ -514,7 +514,7 @@ def format_output(
     lines.append("")
 
     # 价格分布点
-    lines.append(f"### 价格分布点（共 {len(geometric_result.price_points)} 个）")
+    lines.append(f"### 价格分布点（共 {len(geometric_result.price_points)} 个，等比）")
     lines.append("")
     price_table_rows = []
     for i, price in enumerate(geometric_result.price_points):
@@ -526,10 +526,12 @@ def format_output(
     lines.append("")
 
     # 买入网格详情
-    lines.append(f"### 买入网格详情（共 {len(geometric_result.buy_prices)} 个）")
+    lines.append(f"### 买入网格详情（共 {len(geometric_result.buy_prices)} 个，等比）")
     lines.append("")
-    lines.append(f"| 层级 | 价格 ({quote_asset}) | 投入资金 ({quote_asset}) | 购买量 ({base_asset}) | 收益率 (%) |")
-    lines.append("|------|------|------|------|------|")
+    lines.append(
+        f"| 层级 | 价格 ({quote_asset}) | 投入资金 ({quote_asset}) | 购买量 ({base_asset}) | 收益率 (%) | 收益额 ({quote_asset}) |"
+    )
+    lines.append("|------|------|------|------|------|------|")
 
     total_quote_check = 0
     geometric_avg_return = (
@@ -549,19 +551,30 @@ def format_output(
             quote = geometric_result.quote_amounts[i]
             base = geometric_result.base_amounts[i]
             return_pct = geometric_result.grid_returns[i]
+            sell_price = geometric_result.price_points[i + 1]
+            profit_amount = base * (sell_price - price)
             total_quote_check += quote
-            lines.append(f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} |")
+            lines.append(
+                f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
+            )
 
             # 如果是组的最后一个网格，插入分组汇总行
             if (i + 1) % grids_per_group == 0:
                 group_stat = geometric_group_stats[group_idx]
+                group_start = group_idx * grids_per_group
+                group_end = group_start + grids_per_group
+                group_profit = sum(
+                    geometric_result.base_amounts[j]
+                    * (geometric_result.price_points[j + 1] - geometric_result.buy_prices[j])
+                    for j in range(group_start, group_end)
+                )
                 lines.append(
-                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | **{group_stat.base_amount:,.8f}** | |"
+                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | **{group_stat.base_amount:,.8f}** | | **{group_profit:,.4f}** |"
                 )
                 group_idx += 1
                 # 如果不是最后一组，添加分隔行
                 if group_idx < num_groups:
-                    lines.append("| | | | | |")
+                    lines.append("| | | | | | |")
     else:
         # 没有分组时，正常输出所有网格
         for i in range(len(geometric_result.buy_prices)):
@@ -569,15 +582,26 @@ def format_output(
             quote = geometric_result.quote_amounts[i]
             base = geometric_result.base_amounts[i]
             return_pct = geometric_result.grid_returns[i]
+            sell_price = geometric_result.price_points[i + 1]
+            profit_amount = base * (sell_price - price)
             total_quote_check += quote
-            lines.append(f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} |")
+            lines.append(
+                f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
+            )
 
     # 合计行
-    lines.append(f"| **合计** | | **{total_quote_check:,.4f}** | **{geometric_result.total_base_amount:,.8f}** | |")
+    total_profit = sum(
+        geometric_result.base_amounts[i]
+        * (geometric_result.price_points[i + 1] - geometric_result.buy_prices[i])
+        for i in range(len(geometric_result.buy_prices))
+    )
+    lines.append(
+        f"| **合计** | | **{total_quote_check:,.4f}** | **{geometric_result.total_base_amount:,.8f}** | | **{total_profit:,.4f}** |"
+    )
     lines.append("")
 
     # 汇总统计
-    lines.append("### 汇总统计")
+    lines.append("### 汇总统计（等比）")
     lines.append("")
     lowest_geometric_price = (
         geometric_result.buy_prices[0] if geometric_result.buy_prices else geometric_result.price_points[0]
@@ -606,7 +630,7 @@ def format_output(
     lines.append("")
 
     # 价格分布点
-    lines.append(f"### 价格分布点（共 {len(arithmetic_result.price_points)} 个）")
+    lines.append(f"### 价格分布点（共 {len(arithmetic_result.price_points)} 个，等差）")
     lines.append("")
     price_table_rows = []
     for i, price in enumerate(arithmetic_result.price_points):
@@ -618,10 +642,12 @@ def format_output(
     lines.append("")
 
     # 买入网格详情
-    lines.append(f"### 买入网格详情（共 {len(arithmetic_result.buy_prices)} 个）")
+    lines.append(f"### 买入网格详情（共 {len(arithmetic_result.buy_prices)} 个，等差）")
     lines.append("")
-    lines.append(f"| 层级 | 价格 ({quote_asset}) | 投入资金 ({quote_asset}) | 购买量 ({base_asset}) | 收益率 (%) |")
-    lines.append("|------|------|------|------|------|")
+    lines.append(
+        f"| 层级 | 价格 ({quote_asset}) | 投入资金 ({quote_asset}) | 购买量 ({base_asset}) | 收益率 (%) | 收益额 ({quote_asset}) |"
+    )
+    lines.append("|------|------|------|------|------|------|")
 
     total_quote_check = 0
     arithmetic_avg_return = (
@@ -641,19 +667,30 @@ def format_output(
             quote = arithmetic_result.quote_amounts[i]
             base = arithmetic_result.base_amounts[i]
             return_pct = arithmetic_result.grid_returns[i]
+            sell_price = arithmetic_result.price_points[i + 1]
+            profit_amount = base * (sell_price - price)
             total_quote_check += quote
-            lines.append(f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} |")
+            lines.append(
+                f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
+            )
 
             # 如果是组的最后一个网格，插入分组汇总行
             if (i + 1) % grids_per_group == 0:
                 group_stat = arithmetic_group_stats[group_idx]
+                group_start = group_idx * grids_per_group
+                group_end = group_start + grids_per_group
+                group_profit = sum(
+                    arithmetic_result.base_amounts[j]
+                    * (arithmetic_result.price_points[j + 1] - arithmetic_result.buy_prices[j])
+                    for j in range(group_start, group_end)
+                )
                 lines.append(
-                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | **{group_stat.base_amount:,.8f}** | |"
+                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | **{group_stat.base_amount:,.8f}** | | **{group_profit:,.4f}** |"
                 )
                 group_idx += 1
                 # 如果不是最后一组，添加分隔行
                 if group_idx < num_groups:
-                    lines.append("| | | | | |")
+                    lines.append("| | | | | | |")
     else:
         # 没有分组时，正常输出所有网格
         for i in range(len(arithmetic_result.buy_prices)):
@@ -661,15 +698,26 @@ def format_output(
             quote = arithmetic_result.quote_amounts[i]
             base = arithmetic_result.base_amounts[i]
             return_pct = arithmetic_result.grid_returns[i]
+            sell_price = arithmetic_result.price_points[i + 1]
+            profit_amount = base * (sell_price - price)
             total_quote_check += quote
-            lines.append(f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} |")
+            lines.append(
+                f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
+            )
 
     # 合计行
-    lines.append(f"| **合计** | | **{total_quote_check:,.4f}** | **{arithmetic_result.total_base_amount:,.8f}** | |")
+    total_profit = sum(
+        arithmetic_result.base_amounts[i]
+        * (arithmetic_result.price_points[i + 1] - arithmetic_result.buy_prices[i])
+        for i in range(len(arithmetic_result.buy_prices))
+    )
+    lines.append(
+        f"| **合计** | | **{total_quote_check:,.4f}** | **{arithmetic_result.total_base_amount:,.8f}** | | **{total_profit:,.4f}** |"
+    )
     lines.append("")
 
     # 汇总统计
-    lines.append("### 汇总统计")
+    lines.append("### 汇总统计（等差）")
     lines.append("")
     lowest_arithmetic_price = (
         arithmetic_result.buy_prices[0] if arithmetic_result.buy_prices else arithmetic_result.price_points[0]
