@@ -596,7 +596,7 @@ def format_output(
         for i in range(len(geometric_result.buy_prices))
     )
     lines.append(
-        f"| **合计** | | **{total_quote_check:,.4f}** | **{geometric_result.total_base_amount:,.8f}** | | **{total_profit:,.4f}** |"
+        f"| **合计** | | **{total_quote_check:,.4f}** | **{geometric_result.total_base_amount:,.8f}** | | |"
     )
     lines.append("")
 
@@ -712,7 +712,7 @@ def format_output(
         for i in range(len(arithmetic_result.buy_prices))
     )
     lines.append(
-        f"| **合计** | | **{total_quote_check:,.4f}** | **{arithmetic_result.total_base_amount:,.8f}** | | **{total_profit:,.4f}** |"
+        f"| **合计** | | **{total_quote_check:,.4f}** | **{arithmetic_result.total_base_amount:,.8f}** | | |"
     )
     lines.append("")
 
