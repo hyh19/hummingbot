@@ -569,7 +569,7 @@ def format_output(
                     for j in range(group_start, group_end)
                 )
                 lines.append(
-                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | **{group_stat.base_amount:,.8f}** | | **{group_profit:,.4f}** |"
+                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | **{group_stat.base_amount:,.8f}** | | |"
                 )
                 group_idx += 1
                 # 如果不是最后一组，添加分隔行
@@ -685,7 +685,7 @@ def format_output(
                     for j in range(group_start, group_end)
                 )
                 lines.append(
-                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | **{group_stat.base_amount:,.8f}** | | **{group_profit:,.4f}** |"
+                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | **{group_stat.base_amount:,.8f}** | | |"
                 )
                 group_idx += 1
                 # 如果不是最后一组，添加分隔行
