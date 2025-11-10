@@ -519,28 +519,42 @@ def calculate_group_stats(grid_result: GridResult, num_groups: int) -> List[Grou
     返回：
         包含每个分组统计信息的列表
     """
+    # 计算网格数量
     num_grids = len(grid_result.buy_prices)
+
+    # 计算每组包含的网格数量
     grids_per_group = num_grids // num_groups
+
+    # 初始化分组统计列表
     group_stats = []
 
+    # 遍历每个分组索引
     for group_idx in range(num_groups):
+        # 计算当前分组起始索引
         start_idx = group_idx * grids_per_group
+
+        # 计算当前分组结束索引
         end_idx = start_idx + grids_per_group
 
-        # 计算该组的资金总额和购买量
+        # 获取当前分组的报价资金总额
         group_quote_amount = grid_result.group_quote_totals[group_idx]
-        group_base_amount = grid_result.group_base_amounts_per_grid[group_idx] * grids_per_group
-        group_buy_fee_amount = sum(grid_result.buy_fee_base_amounts[start_idx:end_idx])
-        group_sell_fee_amount = sum(grid_result.sell_fee_quote_amounts[start_idx:end_idx])
 
+        # 获取当前分组的基础资产总量
+        group_base_amount = grid_result.group_base_amounts_per_grid[group_idx] * grids_per_group
+
+        # 将当前分组统计信息追加到列表
         group_stats.append(
             GroupStats(
+                # 记录分组编号
                 group_number=group_idx + 1,
+                # 记录报价资产金额
                 quote_amount=group_quote_amount,
+                # 记录基础资产数量
                 base_amount=group_base_amount,
             )
         )
 
+    # 返回所有分组的统计信息
     return group_stats
 
 
