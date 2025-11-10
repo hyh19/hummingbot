@@ -35,6 +35,12 @@ python3 learning/grid_calculator/geometric_grid_helper.py -M 32000 -m 16000 -r 0
 python3 learning/grid_calculator/geometric_grid_helper.py -m 12000 -g 10 -r 0.015
 ```
 
+- 不提供最低价时，可通过最高价、网格数量和单网格收益率计算最低价：
+
+```bash
+python3 learning/grid_calculator/geometric_grid_helper.py -M 28000 -g 8 -r 0.012
+```
+
 ## 输出说明
 
 - 输出最高价、最低价、网格数量、单网格收益率，并给出跌幅百分比。
@@ -71,6 +77,9 @@ def parse_args() -> argparse.Namespace:
 
 示例 3：已知最低价、网格数量与单网格收益率，推导最高价
   python3 learning/grid_calculator/geometric_grid_helper.py -m 12000 -g 10 -r 0.015
+
+示例 4：已知最高价、网格数量与单网格收益率，推导最低价
+  python3 learning/grid_calculator/geometric_grid_helper.py -M 28000 -g 8 -r 0.012
 
 注意事项
 --------
