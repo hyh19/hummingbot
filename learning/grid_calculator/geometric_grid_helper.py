@@ -147,8 +147,8 @@ def solve_parameters(
     min_price: float | None,
     num_grids: int | None,
     grid_return_pct: float | None,
-) -> tuple[float, float, int, float]:
-    """根据提供的任意三个参数推导第四个参数。"""
+) -> tuple[float, float, int, float, float | None]:
+    """根据提供的任意三个参数推导第四个参数，同时返回原始的浮点型网格数量。"""
 
     # 计算提供的参数数量（非 None 值），用于确保只提供了四个参数中的三个
     provided_count = sum(value is not None for value in (max_price, min_price, num_grids, grid_return_pct))
@@ -197,6 +197,9 @@ def solve_parameters(
             print("错误: 计算得到的单网格收益率不大于 0，输入参数不合法", file=sys.stderr)
             raise SystemExit(1)
 
+    # 用于记录未取整前的浮点型网格数量
+    raw_num_grids: float | None = None
+
     # 若未提供 num_grids，反解网格数量
     if num_grids is None:
         # 检查是否提供了 max_price、min_price
@@ -219,14 +222,9 @@ def solve_parameters(
             raise SystemExit(1)
         # 推出浮点型网格数量
         num_grids_float = numerator / denominator
-        # 四舍五入取最近的整数
-        nearest = round(num_grids_float)
-        # 如果计算结果不是整数（有误差），报错
-        if not math.isclose(num_grids_float, nearest, rel_tol=1e-9, abs_tol=1e-9):
-            print("错误: 计算得到的网格数量不是整数，请检查输入参数", file=sys.stderr)
-            raise SystemExit(1)
-        # 整数化
-        num_grids = int(nearest)
+        raw_num_grids = num_grids_float
+        # 取最接近的整数
+        num_grids = round(num_grids_float)
         # 网格数量如果小于 2 也报错
         if num_grids < 2:
             print("错误: 计算得到的网格数量小于 2，请检查输入参数", file=sys.stderr)
@@ -247,8 +245,12 @@ def solve_parameters(
         print("错误: 计算得到的最低价不应大于或等于最高价，请检查输入参数", file=sys.stderr)
         raise SystemExit(1)
 
-    # 返回：最高价、最低价、网格数量、单网格收益率（全部已填充且为有效数值）
-    return max_price, min_price, num_grids, grid_return_pct
+    # 若用户直接提供 num_grids，则记下其浮点表示
+    if raw_num_grids is None and num_grids is not None:
+        raw_num_grids = float(num_grids)
+
+    # 返回：最高价、最低价、网格数量、单网格收益率，以及原始浮点型网格数量
+    return max_price, min_price, num_grids, grid_return_pct, raw_num_grids
 
 
 def main() -> None:
@@ -268,15 +270,22 @@ def main() -> None:
     grid_return_pct = args.grid_return_pct
 
     # 根据输入参数推导/校验最终的最高价、最低价、网格数量、单网格收益率
-    max_price, min_price, num_grids, grid_return_pct = solve_parameters(
-        max_price, min_price, num_grids, grid_return_pct
-    )
+    (
+        max_price,
+        min_price,
+        num_grids,
+        grid_return_pct,
+        raw_num_grids,
+    ) = solve_parameters(max_price, min_price, num_grids, grid_return_pct)
     # 计算从最高价到最低价的跌幅百分比
     drawdown_pct = compute_drawdown_pct(min_price, max_price)
 
     print(f"最高价 (max_price): {max_price:,.6f}")
     print(f"最低价 (min_price): {min_price:,.6f}")
-    print(f"网格数量 (num_grids): {num_grids}")
+    rounding_note = ""
+    if args.grids is None and raw_num_grids is not None:
+        rounding_note = f"（已取最接近的整数，原始计算值 {raw_num_grids:.6f}）"
+    print(f"网格数量 (num_grids): {num_grids}{rounding_note}")
     print(f"单网格收益率 (grid_return_pct): {grid_return_pct:.6f} ({grid_return_pct * 100:.2f}%)")
     print("从最高价到最低价的跌幅: " f"{drawdown_pct:,.2f}%")
 
