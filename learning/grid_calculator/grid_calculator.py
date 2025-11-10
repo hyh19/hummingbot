@@ -696,7 +696,7 @@ def format_output(
                 group_buy_fee_total = group_stat.buy_fee_base_amount
                 group_sell_fee_total = group_stat.sell_fee_quote_amount
                 lines.append(
-                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | **{group_buy_fee_total:,.8f}** | **{group_sell_fee_total:,.4f}** | **{group_stat.base_amount:,.8f}** | | |"
+                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | | | **{group_stat.base_amount:,.8f}** | | |"
                 )
                 group_idx += 1
                 # 如果不是最后一组，添加分隔行
@@ -815,7 +815,7 @@ def format_output(
                 group_buy_fee_total = group_stat.buy_fee_base_amount
                 group_sell_fee_total = group_stat.sell_fee_quote_amount
                 lines.append(
-                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | **{group_buy_fee_total:,.8f}** | **{group_sell_fee_total:,.4f}** | **{group_stat.base_amount:,.8f}** | | |"
+                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | | | **{group_stat.base_amount:,.8f}** | | |"
                 )
                 group_idx += 1
                 # 如果不是最后一组，添加分隔行
