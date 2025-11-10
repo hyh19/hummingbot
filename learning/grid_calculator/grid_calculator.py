@@ -568,26 +568,41 @@ def generate_default_filename(
     返回：
         文件名（全小写+下划线格式，扩展名为 .md）
     """
-    # 将交易对转换为小写并替换连字符为下划线
+    # 将交易对转换为小写并替换连字符为下划线，生成基础交易对名称
     pair_name = trading_pair.lower().replace("-", "_")
 
-    # 构建文件名各部分
-    parts = [
-        pair_name,
-        f"capital_{int(total_capital)}",
-        f"min_price_{int(min_price)}",
-        f"max_price_{int(max_price)}",
-        f"grids_{num_grids}",
-    ]
+    # 初始化文件名片段列表
+    parts = []
 
-    # 如果分组数量大于 1，添加分组信息
+    # 将交易对名称加入文件名片段
+    parts.append(pair_name)
+
+    # 将资金总额信息加入文件名片段
+    parts.append(f"capital_{int(total_capital)}")
+
+    # 将最低价信息加入文件名片段
+    parts.append(f"min_price_{int(min_price)}")
+
+    # 将最高价信息加入文件名片段
+    parts.append(f"max_price_{int(max_price)}")
+
+    # 将网格数量信息加入文件名片段
+    parts.append(f"grids_{num_grids}")
+
+    # 当分组数量大于 1 时，将分组信息加入文件名片段
     if num_groups > 1:
+        # 将分组数量格式化后追加到文件名片段
         parts.append(f"groups_{num_groups}")
+
+    # 当资金分配公比不为 1 时，追加公比信息
     if abs(fund_ratio - 1.0) > 1e-12:
+        # 将资金分配公比格式化并替换小数点为下划线后追加
         parts.append(f"group_ratio_{fund_ratio:.4f}".replace(".", "_"))
 
-    # 组合文件名
+    # 使用下划线连接各片段并追加扩展名形成文件名
     filename = "_".join(parts) + ".md"
+
+    # 返回生成的文件名
     return filename
 
 
