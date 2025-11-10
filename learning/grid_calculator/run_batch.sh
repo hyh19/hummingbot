@@ -13,11 +13,11 @@ FEE_RATE="${FEE_RATE:-0.001}"
 
 COMMON_ARGS=(
   "--trading-pair" "BTC-USDT"
-  "--capital" "100000"
-  "--min-price" "100000"
-  "--max-price" "198689.4"
-  "--grids" "69"
-  "--groups" "1"
+  "--capital" "200000"
+  "--min-price" "50000"
+  "--max-price" "100000"
+  "--grids" "70"
+  "--groups" "7"
   "--fee-rate" "${FEE_RATE}"
 )
 
