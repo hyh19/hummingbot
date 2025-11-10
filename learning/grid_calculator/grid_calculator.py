@@ -243,15 +243,15 @@ def calculate_arithmetic_grid(
     grids_per_group = num_grids // num_groups
 
     # 每个网格投入的报价资产成本（含手续费前）
-    quote_amounts: List[float] = []  
+    quote_amounts: List[float] = []
     # 每个网格实际建仓的基础资产数量（扣除买入手续费后）
-    base_amounts: List[float] = []  
+    base_amounts: List[float] = []
     # 各分组分配的报价资产总额
-    group_quote_totals: List[float] = []  
+    group_quote_totals: List[float] = []
     # 各分组内单个网格的基础资产购入量
-    group_base_amounts_per_grid: List[float] = []  
+    group_base_amounts_per_grid: List[float] = []
     # 每个网格对应的买入手续费（以基础资产计）
-    buy_fee_base_amounts: List[float] = []  
+    buy_fee_base_amounts: List[float] = []
 
     for group_idx in range(num_groups):
         # 计算当前分组对应的网格起始下标，保证顺序分配
@@ -302,7 +302,7 @@ def calculate_arithmetic_grid(
     net_profit_amounts: List[float] = []
     # 初始化卖出手续费列表，用于存储每个网格卖出时产生的手续费（以报价资产计）
     sell_fee_quote_amounts: List[float] = []
-    
+
     for i in range(len(buy_prices)):
         # 获取下一个价格点，作为当前网格的卖出价（即套利时的卖出价格）
         sell_price = price_points[i + 1]
@@ -667,8 +667,6 @@ def format_output(
     )
 
     total_quote_check = 0
-    total_buy_fee_check = 0
-    total_sell_fee_check = 0
     geometric_avg_return = (
         sum(geometric_result.grid_returns) / len(geometric_result.grid_returns)
         if geometric_result.grid_returns
@@ -690,8 +688,6 @@ def format_output(
             sell_fee = geometric_result.sell_fee_quote_amounts[i]
             profit_amount = geometric_result.net_profit_amounts[i]
             total_quote_check += quote
-            total_buy_fee_check += buy_fee
-            total_sell_fee_check += sell_fee
             lines.append(
                 f"| {i+1} | {price:,.4f} | {quote:,.4f} | {buy_fee:,.8f} | {sell_fee:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
             )
@@ -717,14 +713,11 @@ def format_output(
             sell_fee = geometric_result.sell_fee_quote_amounts[i]
             profit_amount = geometric_result.net_profit_amounts[i]
             total_quote_check += quote
-            total_buy_fee_check += buy_fee
-            total_sell_fee_check += sell_fee
             lines.append(
                 f"| {i+1} | {price:,.4f} | {quote:,.4f} | {buy_fee:,.8f} | {sell_fee:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
             )
 
     # 合计行
-    total_profit = sum(geometric_result.net_profit_amounts)
     lines.append(
         f"| **合计** | | **{total_quote_check:,.4f}** | | | **{geometric_result.total_base_amount:,.8f}** | | |"
     )
