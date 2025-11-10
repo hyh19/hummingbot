@@ -726,7 +726,7 @@ def format_output(
     # 合计行
     total_profit = sum(geometric_result.net_profit_amounts)
     lines.append(
-        f"| **合计** | | **{total_quote_check:,.4f}** | **{total_buy_fee_check:,.8f}** | **{total_sell_fee_check:,.4f}** | **{geometric_result.total_base_amount:,.8f}** | | **{total_profit:,.4f}** |"
+        f"| **合计** | | **{total_quote_check:,.4f}** | | | **{geometric_result.total_base_amount:,.8f}** | | |"
     )
     lines.append("")
 
@@ -784,8 +784,6 @@ def format_output(
     )
 
     total_quote_check = 0
-    total_buy_fee_check = 0
-    total_sell_fee_check = 0
     arithmetic_avg_return = (
         sum(arithmetic_result.grid_returns) / len(arithmetic_result.grid_returns)
         if arithmetic_result.grid_returns
@@ -807,8 +805,6 @@ def format_output(
             sell_fee = arithmetic_result.sell_fee_quote_amounts[i]
             profit_amount = arithmetic_result.net_profit_amounts[i]
             total_quote_check += quote
-            total_buy_fee_check += buy_fee
-            total_sell_fee_check += sell_fee
             lines.append(
                 f"| {i+1} | {price:,.4f} | {quote:,.4f} | {buy_fee:,.8f} | {sell_fee:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
             )
@@ -834,16 +830,13 @@ def format_output(
             sell_fee = arithmetic_result.sell_fee_quote_amounts[i]
             profit_amount = arithmetic_result.net_profit_amounts[i]
             total_quote_check += quote
-            total_buy_fee_check += buy_fee
-            total_sell_fee_check += sell_fee
             lines.append(
                 f"| {i+1} | {price:,.4f} | {quote:,.4f} | {buy_fee:,.8f} | {sell_fee:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
             )
 
     # 合计行
-    total_profit = sum(arithmetic_result.net_profit_amounts)
     lines.append(
-        f"| **合计** | | **{total_quote_check:,.4f}** | **{total_buy_fee_check:,.8f}** | **{total_sell_fee_check:,.4f}** | **{arithmetic_result.total_base_amount:,.8f}** | | **{total_profit:,.4f}** |"
+        f"| **合计** | | **{total_quote_check:,.4f}** | | | **{arithmetic_result.total_base_amount:,.8f}** | | |"
     )
     lines.append("")
 
