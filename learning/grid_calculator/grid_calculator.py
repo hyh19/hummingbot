@@ -113,8 +113,6 @@ class GroupStats:
     group_number: int  # 组别编号（从 1 开始）
     quote_amount: float  # 该组的资金总额（报价资产）
     base_amount: float  # 该组购买的基础资产数量
-    buy_fee_base_amount: float  # 该组的买入手续费总额（基础资产）
-    sell_fee_quote_amount: float  # 该组的卖出手续费总额（报价资产）
 
 
 @dataclass
@@ -530,8 +528,6 @@ def calculate_group_stats(grid_result: GridResult, num_groups: int) -> List[Grou
                 group_number=group_idx + 1,
                 quote_amount=group_quote_amount,
                 base_amount=group_base_amount,
-                buy_fee_base_amount=group_buy_fee_amount,
-                sell_fee_quote_amount=group_sell_fee_amount,
             )
         )
 
@@ -693,8 +689,6 @@ def format_output(
             # 如果是组的最后一个网格，插入分组汇总行
             if (i + 1) % grids_per_group == 0:
                 group_stat = geometric_group_stats[group_idx]
-                group_buy_fee_total = group_stat.buy_fee_base_amount
-                group_sell_fee_total = group_stat.sell_fee_quote_amount
                 lines.append(
                     f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | | | **{group_stat.base_amount:,.8f}** | | |"
                 )
@@ -812,8 +806,6 @@ def format_output(
             # 如果是组的最后一个网格，插入分组汇总行
             if (i + 1) % grids_per_group == 0:
                 group_stat = arithmetic_group_stats[group_idx]
-                group_buy_fee_total = group_stat.buy_fee_base_amount
-                group_sell_fee_total = group_stat.sell_fee_quote_amount
                 lines.append(
                     f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | | | **{group_stat.base_amount:,.8f}** | | |"
                 )
