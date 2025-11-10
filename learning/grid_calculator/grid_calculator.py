@@ -145,33 +145,43 @@ def compute_group_quote_shares(
     根据资金分配公比计算分组资金权重，并返回每组的资金配额。
 
     参数：
-        total_capital: 总资金
-        num_groups: 分组数量
-        fund_ratio: 资金分配公比（> 0，fund_ratio > 1 时高价组资金更多，0 < fund_ratio < 1 时低价组资金更多）
+        total_capital：投入网格策略的报价资产总额，单位与报价资产一致。
+        num_groups：资金划分的组数，决定报价资产在分层网格中的分配数量。
+        fund_ratio：相邻组之间的资金公比，取值需大于 0；当大于 1 时高价组权重更高，当介于 0 与 1 之间时低价组权重更高。
 
     返回：
-        长度为 num_groups 的列表，顺序与分组索引一致（从低价组到高价组）。
-        fund_ratio > 1 时列表随索引递增，0 < fund_ratio < 1 时列表随索引递减。
-        最后一项会进行浮点修正以确保份额之和等于 total_capital。
+        按从低价组到高价组顺序排列的报价资产配额列表，长度等于 num_groups。
+        若 fund_ratio 大于 1，列表元素随索引递增；若 fund_ratio 介于 0 与 1 之间，列表元素随索引递减。
+        最后一项会在返回前进行浮点修正，以确保各项之和等于 total_capital。
     """
+    # 验证分组数量是否为正数，若不满足条件则直接抛出错误以阻止后续计算。
     if num_groups <= 0:
         raise ValueError("分组数量必须大于 0")
 
+    # 当只有一个分组时，直接返回包含全部资金的单元素列表。
     if num_groups == 1:
         return [total_capital]
 
+    # 对资金公比进行下限截断，避免出现零或负值导致指数权重计算异常。
     normalized_ratio = max(fund_ratio, 1e-12)
 
+    # 判断资金公比是否等于 1，若近似相等则采用等额分配方案。
     if abs(normalized_ratio - 1.0) < 1e-12:
+        # 创建长度为分组数量的列表，为每组分配相同份额。
         shares = [total_capital / num_groups] * num_groups
     else:
-        # fund_ratio > 1 时份额按索引递增，0 < fund_ratio < 1 时份额按索引递减
+        # 构造指数权重序列，当 normalized_ratio 大于 1 时权重递增，介于 0 与 1 之间时递减。
         weights = [normalized_ratio**i for i in range(num_groups)]
+        # 计算权重总和，用于归一化各组的资金份额。
         weight_sum = sum(weights)
+        # 根据权重占比为每组分配对应的资金份额。
         shares = [total_capital * weight / weight_sum for weight in weights]
 
+    # 汇总当前的资金份额，准备执行浮点误差修正。
     current_total = sum(shares)
+    # 将误差集中到最后一组，确保份额之和严格等于总资金。
     shares[-1] += total_capital - current_total
+    # 返回最终的资金配额列表，供后续网格计算使用。
     return shares
 
 
