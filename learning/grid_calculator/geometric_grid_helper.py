@@ -278,11 +278,7 @@ def main() -> None:
     print(f"最低价 (min_price): {min_price:,.6f}")
     print(f"网格数量 (num_grids): {num_grids}")
     print(f"单网格收益率 (grid_return_pct): {grid_return_pct:.6f} ({grid_return_pct * 100:.2f}%)")
-    print(
-        "从最高价 (max_price) "
-        f"{max_price:,.6f} 到最低价 (min_price) {min_price:,.6f} 的跌幅 (drawdown_pct): "
-        f"{drawdown_pct:,.2f}%"
-    )
+    print("从最高价到最低价的跌幅: " f"{drawdown_pct:,.2f}%")
 
 
 if __name__ == "__main__":
