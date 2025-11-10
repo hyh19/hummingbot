@@ -14,8 +14,8 @@
 
 输入参数
 ----
-- trading_pair：交易对，格式为「基础资产-报价资产」（例如： BTC-USDT）。
-- total_capital：投入策略的报价资产总额（例如： 10000 USDT）。
+- trading_pair：交易对，格式为「基础资产-报价资产」（例如：BTC-USDT）。
+- total_capital：投入策略的报价资产总额（例如：10000 USDT）。
 - min_price：网格价格区间下限。
 - max_price：网格价格区间上限。
 - num_grids：网格数量（买入层级数）。
@@ -50,7 +50,7 @@
 - 指定输出文件：
   python3 grid_calculator.py -p BTC-USDT -c 10000 -m 1000 -M 2000 -g 10 -o result.md
 
-若未指定 --output 参数，脚本会根据输入自动生成文件名（例如： btc_usdt_capital_10000_min_price_1000_max_price_2000_grids_10.md），并在终端提示保存路径。
+若未指定 --output 参数，脚本会根据输入自动生成文件名（例如：btc_usdt_capital_10000_min_price_1000_max_price_2000_grids_10.md），并在终端提示保存路径。
 
 注意事项
 ----
