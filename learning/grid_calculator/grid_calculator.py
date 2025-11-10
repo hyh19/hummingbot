@@ -74,7 +74,14 @@ from dataclasses import dataclass
 
 @dataclass
 class GroupStats:
-    """分组统计信息"""
+    """
+    分组统计信息。
+
+    Attributes:
+        group_number (int): 组别编号，从 1 开始。
+        quote_amount (float): 当前分组的报价资产资金总额。
+        base_amount (float): 当前分组购买的基础资产数量。
+    """
 
     group_number: int  # 组别编号（从 1 开始）
     quote_amount: float  # 该组的资金总额（报价资产）
@@ -83,7 +90,26 @@ class GroupStats:
 
 @dataclass
 class GridResult:
-    """网格计算结果"""
+    """
+    网格计算结果。
+
+    Attributes:
+        grid_type (str): 结果类型，可为 "arithmetic" 或 "geometric"。
+        price_points (List[float]): 全部价格分布点列表，长度为 n + 1。
+        buy_prices (List[float]): 买入价格列表，长度为 n。
+        quote_amounts (List[float]): 各网格投入的报价资产金额列表。
+        base_amounts (List[float]): 各网格建仓后的基础资产数量列表。
+        total_base_amount (float): 所有网格合计的基础资产数量。
+        total_quote_amount (float): 所有网格合计的报价资产投入金额。
+        average_price (float): 加权平均买入价格，单位为报价资产除以基础资产。
+        grid_returns (List[float]): 各网格的收益率（百分比）。
+        net_profit_amounts (List[float]): 各网格的净收益金额，单位为报价资产。
+        buy_fee_base_amounts (List[float]): 各网格买入手续费金额，单位为基础资产。
+        sell_fee_quote_amounts (List[float]): 各网格卖出手续费金额，单位为报价资产。
+        group_quote_totals (List[float]): 各资金分组的报价资产总额列表。
+        group_base_amounts_per_grid (List[float]): 各资金分组内单个网格的基础资产数量。
+        fee_rate (float): 买入与卖出的统一手续费率。
+    """
 
     grid_type: str  # "arithmetic" 或 "geometric"
     price_points: List[float]  # n+1 个价格点
@@ -108,17 +134,18 @@ def compute_group_quote_shares(
     fund_ratio: float,
 ) -> List[float]:
     """
-    根据资金分配公比计算分组资金权重，并返回每组的资金配额。
+    根据资金公比计算各分组的报价资产配额。
 
-    参数：
-        total_capital：投入网格策略的报价资产总额，单位与报价资产一致。
-        num_groups：资金划分的组数，决定报价资产在分层网格中的分配数量。
-        fund_ratio：相邻组之间的资金公比，取值需大于 0；当大于 1 时高价组权重更高，当介于 0 与 1 之间时低价组权重更高。
+    Args:
+        total_capital (float): 投入网格策略的报价资产总额，单位与报价资产一致。
+        num_groups (int): 资金划分的组数，决定报价资产在分层网格中的分配数量。
+        fund_ratio (float): 相邻组之间的资金公比，需大于 0；大于 1 时高价组获得更多资金，介于 0 与 1 之间时低价组获得更多资金。
 
-    返回：
-        按从低价组到高价组顺序排列的报价资产配额列表，长度等于 num_groups。
-        若 fund_ratio 大于 1，列表元素随索引递增；若 fund_ratio 介于 0 与 1 之间，列表元素随索引递减。
-        最后一项会在返回前进行浮点修正，以确保各项之和等于 total_capital。
+    Returns:
+        List[float]: 从低价组到高价组顺序排列的报价资产配额列表，总和等于 total_capital。
+
+    Raises:
+        ValueError: 当 num_groups 小于等于 0 时抛出。
     """
     # 验证分组数量是否为正数，若不满足条件则直接抛出错误以阻止后续计算。
     if num_groups <= 0:
@@ -161,26 +188,23 @@ def calculate_arithmetic_grid(
     fee_rate: float,
 ) -> GridResult:
     """
-    计算等差数列网格
+    计算等差数列网格的资金与收益指标。
 
-    参数：
-        total_capital：用于构建网格的总资金，以报价资产数量计。
-        min_price：网格最低价，对应价格区间的起点。
-        max_price：网格最高价，对应价格区间的终点。
-        num_grids：网格数量，对应买入层级数量。
-        num_groups：资金分组数量，用于决定买入层级的资金划分。
-        group_quote_shares：各资金分组的报价资产份额列表，长度需等于分组数量，顺序从低价组到高价组。
-        fee_rate：单次交易手续费率，以十进制表示（例如 0.001 表示 0.1%）。
+    Args:
+        total_capital (float): 用于构建网格的报价资产总资金。
+        min_price (float): 网格价格区间的下限。
+        max_price (float): 网格价格区间的上限。
+        num_grids (int): 买入网格的数量。
+        num_groups (int): 资金分组数量，需为 num_grids 的因数。
+        group_quote_shares (List[float]): 各分组的报价资产份额列表，按价格从低到高排列。
+        fee_rate (float): 单次交易手续费率，十进制表示。
 
-    返回：
-        GridResult 对象
+    Returns:
+        GridResult: 等差网格的完整计算结果。
 
-    说明：
-        - 生成 n+1 个价格点（从最低价到最高价）
-        - 只在前 n 个层级买入（不包括最高价）
-        - 将总资金按分组资金份额进行分配，列表顺序对应从低价组到高价组
-        - 在每组内，根据该组买入价格的总和计算单个网格的基础资产购买量
-        - 每组内的网格购买量一致，不同组之间的购买量根据资金份额不同而变化
+    Raises:
+        ValueError: 当 group_quote_shares 的长度与 num_groups 不一致时抛出。
+        ValueError: 当 group_quote_shares 之和与 total_capital 不符时抛出。
     """
     # 计算等差价格间隔
     price_diff = (max_price - min_price) / num_grids
@@ -346,26 +370,23 @@ def calculate_geometric_grid(
     fee_rate: float,
 ) -> GridResult:
     """
-    计算等比数列网格
+    计算等比数列网格的资金与收益指标。
 
-    参数：
-        total_capital：用于构建网格的总资金，以报价资产数量计。
-        min_price：网格最低价，对应价格区间的起点。
-        max_price：网格最高价，对应价格区间的终点。
-        num_grids：网格数量，对应买入层级数量。
-        num_groups：资金分组数量，用于决定买入层级的资金划分。
-        group_quote_shares：各资金分组的报价资产份额列表，长度需等于分组数量，顺序从低价组到高价组。
-        fee_rate：单次交易手续费率，以十进制表示（例如 0.001 表示 0.1%）。
+    Args:
+        total_capital (float): 用于构建网格的报价资产总资金。
+        min_price (float): 网格价格区间的下限。
+        max_price (float): 网格价格区间的上限。
+        num_grids (int): 买入网格的数量。
+        num_groups (int): 资金分组数量，需为 num_grids 的因数。
+        group_quote_shares (List[float]): 各分组的报价资产份额列表，按价格从低到高排列。
+        fee_rate (float): 单次交易手续费率，十进制表示。
 
-    返回：
-        GridResult 对象
+    Returns:
+        GridResult: 等比网格的完整计算结果。
 
-    说明：
-        - 生成 n+1 个价格点（从最低价到最高价）
-        - 只在前 n 个层级买入（不包括最高价）
-        - 将总资金按分组资金份额进行分配，列表顺序对应从低价组到高价组
-        - 在每组内，根据该组买入价格的总和计算单个网格的基础资产购买量
-        - 每组内的网格购买量一致，不同组之间的购买量根据资金份额不同而变化
+    Raises:
+        ValueError: 当 group_quote_shares 的长度与 num_groups 不一致时抛出。
+        ValueError: 当 group_quote_shares 之和与 total_capital 不符时抛出。
     """
     # 计算等比价格公比
     ratio = (max_price / min_price) ** (1.0 / num_grids)
@@ -523,14 +544,14 @@ def calculate_geometric_grid(
 
 def calculate_group_stats(grid_result: GridResult, num_groups: int) -> List[GroupStats]:
     """
-    计算分组统计信息
+    汇总每个资金分组的统计信息。
 
-    参数：
-        grid_result: 网格计算结果
-        num_groups: 分组数量
+    Args:
+        grid_result (GridResult): 网格计算结果对象。
+        num_groups (int): 分组数量。
 
-    返回：
-        包含每个分组统计信息的列表
+    Returns:
+        List[GroupStats]: 每个分组的统计数据列表。
     """
     # 计算网格数量
     num_grids = len(grid_result.buy_prices)
@@ -581,19 +602,19 @@ def generate_default_filename(
     fund_ratio: float = 1.0,
 ) -> str:
     """
-    根据命令行参数生成默认文件名
+    根据命令行参数生成默认的 Markdown 文件名。
 
-    参数：
-        trading_pair: 交易对
-        total_capital: 资金总额
-        min_price: 最低价
-        max_price: 最高价
-        num_grids: 网格数量
-        num_groups: 分组数量
-        fund_ratio: 资金分配公比
+    Args:
+        trading_pair (str): 交易对名称。
+        total_capital (float): 资金总额。
+        min_price (float): 最低价。
+        max_price (float): 最高价。
+        num_grids (int): 网格数量。
+        num_groups (int): 分组数量，默认为 1。
+        fund_ratio (float): 资金分配公比，默认为 1.0。
 
-    返回：
-        文件名（全小写+下划线格式，扩展名为 .md）
+    Returns:
+        str: 以小写和下划线拼接的文件名，扩展名为 `.md`。
     """
     # 将交易对转换为小写并替换连字符为下划线，生成基础交易对名称
     pair_name = trading_pair.lower().replace("-", "_")
@@ -645,21 +666,21 @@ def format_output(
     fund_ratio: float = 1.0,
 ) -> str:
     """
-    格式化输出结果为 Markdown 格式
+    将网格计算结果格式化为 Markdown 文本。
 
-    参数：
-        trading_pair: 交易对
-        total_capital: 资金总额
-        min_price: 最低价
-        max_price: 最高价
-        num_grids: 网格数量
-        arithmetic_result: 等差数列网格结果
-        geometric_result: 等比数列网格结果
-        num_groups: 分组数量
-        fund_ratio: 资金分配公比
+    Args:
+        trading_pair (str): 交易对名称。
+        total_capital (float): 资金总额。
+        min_price (float): 最低价。
+        max_price (float): 最高价。
+        num_grids (int): 网格数量。
+        arithmetic_result (GridResult): 等差网格的计算结果。
+        geometric_result (GridResult): 等比网格的计算结果。
+        num_groups (int): 分组数量，默认为 1。
+        fund_ratio (float): 资金分配公比，默认为 1.0。
 
-    返回：
-        Markdown 格式的字符串
+    Returns:
+        str: 适用于 Markdown 文件的完整输出内容。
     """
     # 将输入的交易对拆分为基础资产和报价资产
     base_asset, quote_asset = trading_pair.split("-")
@@ -1108,9 +1129,7 @@ def format_output(
 
 def main():
     """
-    主函数
-
-    解析命令行参数，计算并输出网格交易参数。
+    解析命令行参数并生成网格交易结果文件。
     """
     # 创建命令行解析器并附加说明示例
     parser = argparse.ArgumentParser(
