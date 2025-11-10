@@ -1112,6 +1112,7 @@ def main():
 
     解析命令行参数，计算并输出网格交易参数。
     """
+    # 创建命令行解析器并附加说明示例
     parser = argparse.ArgumentParser(
         description="计算网格交易的价格分布、资金分配和购买量",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -1139,7 +1140,7 @@ def main():
 - 运行结束后终端会打印实际写入的文件路径。
         """,
     )
-
+    # 注册交易对参数
     parser.add_argument(
         "--trading-pair",
         "-p",
@@ -1147,6 +1148,7 @@ def main():
         required=True,
         help="交易对，格式：基础资产-报价资产（例如：BTC-USDT、ETH-USDT）",
     )
+    # 注册资金总额参数
     parser.add_argument(
         "--capital",
         "-c",
@@ -1154,6 +1156,7 @@ def main():
         required=True,
         help="资金总额，以报价资产计价（例如：10000 表示 10000 USDT）",
     )
+    # 注册最低价参数
     parser.add_argument(
         "--min-price",
         "-m",
@@ -1161,6 +1164,7 @@ def main():
         required=True,
         help="最低价，网格交易的价格区间下限（必须大于 0）",
     )
+    # 注册最高价参数
     parser.add_argument(
         "--max-price",
         "-M",
@@ -1168,6 +1172,7 @@ def main():
         required=True,
         help="最高价，网格交易的价格区间上限（必须大于最低价）",
     )
+    # 注册网格数量参数
     parser.add_argument(
         "--grids",
         "-g",
@@ -1175,6 +1180,7 @@ def main():
         required=True,
         help="网格数量 n，即买入订单的层级数量（必须大于 0）",
     )
+    # 注册分组数量参数
     parser.add_argument(
         "--groups",
         "-G",
@@ -1182,6 +1188,7 @@ def main():
         default=1,
         help="分组数量，将网格按顺序分成指定数量的分组（必须是网格数量的因数，默认 1）",
     )
+    # 注册资金分配公比参数
     parser.add_argument(
         "--group-ratio",
         "-R",
@@ -1189,6 +1196,7 @@ def main():
         default=1.0,
         help="资金分配公比（> 0，默认 1 表示分组等额分配，group_ratio > 1 时高价组获得更多资金，0 < group_ratio < 1 时低价组获得更多资金）",
     )
+    # 注册手续费率参数
     parser.add_argument(
         "--fee-rate",
         "-f",
@@ -1196,6 +1204,7 @@ def main():
         default=0.001,
         help="买入与卖出的统一手续费率（小数），默认 0.001 表示 0.1%%",
     )
+    # 注册输出文件路径参数
     parser.add_argument(
         "--output",
         "-o",
@@ -1203,100 +1212,163 @@ def main():
         default=None,
         help="输出文件路径（可选），如果未指定则根据命令行参数自动生成默认文件名（全小写+下划线格式）",
     )
-
+    # 解析命令行参数
     args = parser.parse_args()
 
     # 参数验证
+    # 校验资金总额需大于零
     if args.capital <= 0:
+        # 输出资金总额错误信息
         print("错误: 资金总额必须大于 0")
+        # 终止程序执行
         return
 
+    # 校验价格上下限必须大于零
     if args.min_price <= 0 or args.max_price <= 0:
+        # 输出价格范围错误信息
         print("错误: 价格必须大于 0")
+        # 终止程序执行
         return
 
+    # 校验最低价需小于最高价
     if args.min_price >= args.max_price:
+        # 输出价格顺序错误信息
         print("错误: 最低价必须小于最高价")
+        # 终止程序执行
         return
 
+    # 校验网格数量需大于零
     if args.grids <= 0:
+        # 输出网格数量错误信息
         print("错误: 网格数量必须大于 0")
+        # 终止程序执行
         return
 
+    # 校验交易对格式必须包含分隔符
     if "-" not in args.trading_pair:
+        # 输出交易对格式错误信息
         print("错误: 交易对格式不正确，应为：基础资产-报价资产（例如：BTC-USDT）")
+        # 终止程序执行
         return
 
     # 验证分组数量
+    # 校验分组数量需大于零
     if args.groups <= 0:
+        # 输出分组数量错误信息
         print("错误: 分组数量必须大于 0")
+        # 终止程序执行
         return
+    # 校验网格数量需能被分组数量整除
     if args.grids % args.groups != 0:
+        # 输出分组因数错误信息
         print(f"错误: 分组数量 {args.groups} 必须是网格数量 {args.grids} 的因数")
+        # 终止程序执行
         return
+    # 校验资金分配公比需大于零
     if args.group_ratio is not None and args.group_ratio <= 0:
+        # 输出资金公比错误信息
         print("错误: 资金分配公比必须大于 0")
+        # 终止程序执行
         return
+    # 校验手续费率需非负
     if args.fee_rate is not None and args.fee_rate < 0:
+        # 输出手续费率错误信息
         print("错误: 手续费率不能为负")
+        # 终止程序执行
         return
 
     # 计算两种网格
+    # 在未指定时使用默认资金公比
     group_ratio = args.group_ratio if args.group_ratio is not None else 1.0
+    # 计算各分组应分配的报价资产
     group_quote_shares = compute_group_quote_shares(args.capital, args.groups, group_ratio)
 
+    # 计算等差网格结果
     arithmetic_result = calculate_arithmetic_grid(
+        # 传入总资金参数
         args.capital,
+        # 传入最低价格
         args.min_price,
+        # 传入最高价格
         args.max_price,
+        # 传入网格数量
         args.grids,
+        # 传入分组数量
         args.groups,
+        # 传入分组资金份额
         group_quote_shares,
+        # 传入手续费率
         args.fee_rate,
     )
 
+    # 计算等比网格结果
     geometric_result = calculate_geometric_grid(
+        # 传入总资金参数
         args.capital,
+        # 传入最低价格
         args.min_price,
+        # 传入最高价格
         args.max_price,
+        # 传入网格数量
         args.grids,
+        # 传入分组数量
         args.groups,
+        # 传入分组资金份额
         group_quote_shares,
+        # 传入手续费率
         args.fee_rate,
     )
 
-    # 生成 Markdown 输出
+    # 生成 Markdown 输出内容
     markdown_output = format_output(
+        # 交易对名称
         args.trading_pair,
+        # 资金总额
         args.capital,
+        # 最低价格
         args.min_price,
+        # 最高价格
         args.max_price,
+        # 网格数量
         args.grids,
+        # 等差网格结果
         arithmetic_result,
+        # 等比网格结果
         geometric_result,
+        # 分组数量
         args.groups,
+        # 资金公比
         args.group_ratio,
     )
 
-    # 输出结果
+    # 确定输出文件路径
     if args.output:
-        # 使用指定的文件名
+        # 使用用户指定的输出文件
         output_file = args.output
     else:
-        # 使用默认文件名
+        # 根据参数生成默认输出文件
         output_file = generate_default_filename(
+            # 交易对
             args.trading_pair,
+            # 资金总额
             args.capital,
+            # 最低价格
             args.min_price,
+            # 最高价格
             args.max_price,
+            # 网格数量
             args.grids,
+            # 分组数量
             args.groups,
+            # 资金公比
             group_ratio,
         )
 
-    # 写入文件
+    # 写入结果到 Markdown 文件
     with open(output_file, "w", encoding="utf-8") as f:
+        # 输出格式化后的内容
         f.write(markdown_output)
+    # 在控制台提示保存路径
     print(f"结果已保存到文件: {output_file}")
 
 
