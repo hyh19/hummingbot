@@ -19,6 +19,7 @@
 - num_grids: 网格数量 n，即买入订单的层级数量
 - num_groups: 分组数量（默认 1），将网格按顺序分成指定数量的分组（必须是网格数量的因数）
 - group_ratio: 分组资金分配公比（默认 1 表示各组均分资金，group_ratio > 1 时倾向于给高价组更多资金，0 < group_ratio < 1 时倾向于给低价组更多资金）
+- fee_rate: 买入与卖出的统一手续费率（默认 0.001 表示 0.1%）
 
 输出内容：
 ----------
@@ -27,7 +28,8 @@
    - 注意：最高价不包含买单，仅作为卖出参考点
 2. 买入网格详情：n 个网格的详细信息
    - 每个网格的价格
-   - 每个网格投入的报价资产数量
+   - 每个网格投入的报价资产数量（含买入手续费）
+   - 每个网格的手续费率与手续费金额（买入+卖出，使用报价资产计算）
    - 每组内每个网格购买的基础资产数量
    - 如果指定了分组数量，会在每组网格后显示该组的汇总信息（资金总额、购买量）
 3. 汇总统计：
@@ -111,6 +113,8 @@ class GroupStats:
     group_number: int  # 组别编号（从 1 开始）
     quote_amount: float  # 该组的资金总额（报价资产）
     base_amount: float  # 该组购买的基础资产数量
+    buy_fee_base_amount: float  # 该组的买入手续费总额（基础资产）
+    sell_fee_quote_amount: float  # 该组的卖出手续费总额（报价资产）
 
 
 @dataclass
@@ -126,8 +130,12 @@ class GridResult:
     total_quote_amount: float  # 总投入的报价资产数量
     average_price: float  # 平均价格 = 总投入资金 / 总购买的基础资产数量
     grid_returns: List[float]  # n 个网格的收益率（百分比），每个网格买入后到下一个价格点卖出的收益率
+    net_profit_amounts: List[float]  # n 个网格的净收益金额（扣除手续费后的报价资产）
+    buy_fee_base_amounts: List[float]  # n 个网格的买入手续费金额（基础资产）
+    sell_fee_quote_amounts: List[float]  # n 个网格的卖出手续费金额（报价资产）
     group_quote_totals: List[float]  # 每组的资金总额（报价资产）
     group_base_amounts_per_grid: List[float]  # 每组中单个网格的基础资产购买量
+    fee_rate: float  # 手续费率（买入与卖出相同）
 
 
 def compute_group_quote_shares(
@@ -176,6 +184,7 @@ def calculate_arithmetic_grid(
     num_grids: int,
     num_groups: int,
     group_quote_shares: List[float],
+    fee_rate: float,
 ) -> GridResult:
     """
     计算等差数列网格
@@ -227,6 +236,7 @@ def calculate_arithmetic_grid(
     base_amounts: List[float] = []
     group_quote_totals: List[float] = []
     group_base_amounts_per_grid: List[float] = []
+    buy_fee_base_amounts: List[float] = []
 
     for group_idx in range(num_groups):
         start_idx = group_idx * grids_per_group
@@ -235,29 +245,43 @@ def calculate_arithmetic_grid(
 
         group_quote_share = group_quote_shares[group_idx]
 
-        # 每组的价格分布点与大网格一致，按组内价格总和分配基础资产
         price_sum_group = sum(group_prices)
-        base_amount_per_grid_group = group_quote_share / price_sum_group if price_sum_group > 0 else 0.0
+        base_amount_before_fee_per_grid = (
+            group_quote_share / price_sum_group if price_sum_group > 0 else 0.0
+        )
+        buy_fee_base_per_grid = base_amount_before_fee_per_grid * fee_rate
+        base_amount_after_fee_per_grid = base_amount_before_fee_per_grid - buy_fee_base_per_grid
 
         for price in group_prices:
-            base_amounts.append(base_amount_per_grid_group)
-            quote_amounts.append(base_amount_per_grid_group * price)
+            base_amounts.append(base_amount_after_fee_per_grid)
+            buy_fee_base_amounts.append(buy_fee_base_per_grid)
+            gross_buy_quote = base_amount_before_fee_per_grid * price
+            quote_amounts.append(gross_buy_quote)
 
         group_quote_totals.append(group_quote_share)
-        group_base_amounts_per_grid.append(base_amount_per_grid_group)
+        group_base_amounts_per_grid.append(base_amount_after_fee_per_grid)
 
     # 计算平均价格
     total_quote_amount = sum(quote_amounts)
     total_base_amount = sum(base_amounts)
     average_price = total_quote_amount / total_base_amount if total_base_amount > 0 else 0.0
 
-    # 计算每个网格的收益率
+    # 计算每个网格的收益率与净收益
     # 对于每个买入网格 i，卖出价格是 price_points[i+1]
-    grid_returns = []
+    grid_returns: List[float] = []
+    net_profit_amounts: List[float] = []
+    sell_fee_quote_amounts: List[float] = []
     for i in range(len(buy_prices)):
         buy_price = buy_prices[i]
         sell_price = price_points[i + 1]  # 下一个价格点
-        return_pct = (sell_price - buy_price) / buy_price * 100.0
+        base_amount = base_amounts[i]
+        total_buy_cost = quote_amounts[i]
+        sell_quote = base_amount * sell_price
+        sell_fee = sell_quote * fee_rate
+        sell_fee_quote_amounts.append(sell_fee)
+        net_profit = sell_quote - sell_fee - total_buy_cost
+        net_profit_amounts.append(net_profit)
+        return_pct = net_profit / total_buy_cost * 100.0 if total_buy_cost > 0 else 0.0
         grid_returns.append(return_pct)
 
     return GridResult(
@@ -270,8 +294,12 @@ def calculate_arithmetic_grid(
         total_quote_amount=total_quote_amount,
         average_price=average_price,
         grid_returns=grid_returns,
+        net_profit_amounts=net_profit_amounts,
+        buy_fee_base_amounts=buy_fee_base_amounts,
+        sell_fee_quote_amounts=sell_fee_quote_amounts,
         group_quote_totals=group_quote_totals,
         group_base_amounts_per_grid=group_base_amounts_per_grid,
+        fee_rate=fee_rate,
     )
 
 
@@ -282,6 +310,7 @@ def calculate_geometric_grid(
     num_grids: int,
     num_groups: int,
     group_quote_shares: List[float],
+    fee_rate: float,
 ) -> GridResult:
     """
     计算等比数列网格
@@ -333,6 +362,7 @@ def calculate_geometric_grid(
     base_amounts: List[float] = []
     group_quote_totals: List[float] = []
     group_base_amounts_per_grid: List[float] = []
+    buy_fee_base_amounts: List[float] = []
 
     for group_idx in range(num_groups):
         start_idx = group_idx * grids_per_group
@@ -341,29 +371,43 @@ def calculate_geometric_grid(
 
         group_quote_share = group_quote_shares[group_idx]
 
-        # 每组沿用原有价格点，根据组内价格总和分配基础资产
         price_sum_group = sum(group_prices)
-        base_amount_per_grid_group = group_quote_share / price_sum_group if price_sum_group > 0 else 0.0
+        base_amount_before_fee_per_grid = (
+            group_quote_share / price_sum_group if price_sum_group > 0 else 0.0
+        )
+        buy_fee_base_per_grid = base_amount_before_fee_per_grid * fee_rate
+        base_amount_after_fee_per_grid = base_amount_before_fee_per_grid - buy_fee_base_per_grid
 
         for price in group_prices:
-            base_amounts.append(base_amount_per_grid_group)
-            quote_amounts.append(base_amount_per_grid_group * price)
+            base_amounts.append(base_amount_after_fee_per_grid)
+            buy_fee_base_amounts.append(buy_fee_base_per_grid)
+            gross_buy_quote = base_amount_before_fee_per_grid * price
+            quote_amounts.append(gross_buy_quote)
 
         group_quote_totals.append(group_quote_share)
-        group_base_amounts_per_grid.append(base_amount_per_grid_group)
+        group_base_amounts_per_grid.append(base_amount_after_fee_per_grid)
 
     # 计算平均价格
     total_quote_amount = sum(quote_amounts)
     total_base_amount = sum(base_amounts)
     average_price = total_quote_amount / total_base_amount if total_base_amount > 0 else 0.0
 
-    # 计算每个网格的收益率
+    # 计算每个网格的收益率与净收益
     # 对于每个买入网格 i，卖出价格是 price_points[i+1]
-    grid_returns = []
+    grid_returns: List[float] = []
+    net_profit_amounts: List[float] = []
+    sell_fee_quote_amounts: List[float] = []
     for i in range(len(buy_prices)):
         buy_price = buy_prices[i]
         sell_price = price_points[i + 1]  # 下一个价格点
-        return_pct = (sell_price - buy_price) / buy_price * 100.0
+        base_amount = base_amounts[i]
+        total_buy_cost = quote_amounts[i]
+        sell_quote = base_amount * sell_price
+        sell_fee = sell_quote * fee_rate
+        sell_fee_quote_amounts.append(sell_fee)
+        net_profit = sell_quote - sell_fee - total_buy_cost
+        net_profit_amounts.append(net_profit)
+        return_pct = net_profit / total_buy_cost * 100.0 if total_buy_cost > 0 else 0.0
         grid_returns.append(return_pct)
 
     return GridResult(
@@ -376,8 +420,12 @@ def calculate_geometric_grid(
         total_quote_amount=total_quote_amount,
         average_price=average_price,
         grid_returns=grid_returns,
+        net_profit_amounts=net_profit_amounts,
+        buy_fee_base_amounts=buy_fee_base_amounts,
+        sell_fee_quote_amounts=sell_fee_quote_amounts,
         group_quote_totals=group_quote_totals,
         group_base_amounts_per_grid=group_base_amounts_per_grid,
+        fee_rate=fee_rate,
     )
 
 
@@ -403,12 +451,16 @@ def calculate_group_stats(grid_result: GridResult, num_groups: int) -> List[Grou
         # 计算该组的资金总额和购买量
         group_quote_amount = grid_result.group_quote_totals[group_idx]
         group_base_amount = grid_result.group_base_amounts_per_grid[group_idx] * grids_per_group
+        group_buy_fee_amount = sum(grid_result.buy_fee_base_amounts[start_idx:end_idx])
+        group_sell_fee_amount = sum(grid_result.sell_fee_quote_amounts[start_idx:end_idx])
 
         group_stats.append(
             GroupStats(
                 group_number=group_idx + 1,
                 quote_amount=group_quote_amount,
                 base_amount=group_base_amount,
+                buy_fee_base_amount=group_buy_fee_amount,
+                sell_fee_quote_amount=group_sell_fee_amount,
             )
         )
 
@@ -507,6 +559,10 @@ def format_output(
     if num_groups > 1:
         lines.append(f"- **分组数量**: {num_groups}（每组 {num_grids // num_groups} 个网格）")
         lines.append(f"- **资金分配公比**: {fund_ratio:.4f}")
+    fee_rate_pct = geometric_result.fee_rate * 100
+    lines.append(
+        f"- **手续费率**: {fee_rate_pct:.4f}%（买入与卖出相同，买入按基础资产计费，卖出按报价资产计费）"
+    )
     lines.append("")
 
     # 输出等比数列网格结果
@@ -529,11 +585,15 @@ def format_output(
     lines.append(f"### 买入网格详情（共 {len(geometric_result.buy_prices)} 个，等比）")
     lines.append("")
     lines.append(
-        f"| 层级 | 价格 ({quote_asset}) | 投入资金 ({quote_asset}) | 购买量 ({base_asset}) | 收益率 (%) | 收益额 ({quote_asset}) |"
+        f"| 层级 | 价格 ({quote_asset}) | 投入资金 ({quote_asset}) | 买入手续费 ({base_asset}) | 卖出手续费 ({quote_asset}) | 购买量 ({base_asset}) | 收益率 (%) | 收益额 ({quote_asset}) |"
     )
-    lines.append("|------|------|------|------|------|------|")
+    lines.append(
+        "|------|------------------|------------------|--------------------|--------------------|------------------|--------------|------------------|"
+    )
 
     total_quote_check = 0
+    total_buy_fee_check = 0
+    total_sell_fee_check = 0
     geometric_avg_return = (
         sum(geometric_result.grid_returns) / len(geometric_result.grid_returns)
         if geometric_result.grid_returns
@@ -551,30 +611,28 @@ def format_output(
             quote = geometric_result.quote_amounts[i]
             base = geometric_result.base_amounts[i]
             return_pct = geometric_result.grid_returns[i]
-            sell_price = geometric_result.price_points[i + 1]
-            profit_amount = base * (sell_price - price)
+            buy_fee = geometric_result.buy_fee_base_amounts[i]
+            sell_fee = geometric_result.sell_fee_quote_amounts[i]
+            profit_amount = geometric_result.net_profit_amounts[i]
             total_quote_check += quote
+            total_buy_fee_check += buy_fee
+            total_sell_fee_check += sell_fee
             lines.append(
-                f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
+                f"| {i+1} | {price:,.4f} | {quote:,.4f} | {buy_fee:,.8f} | {sell_fee:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
             )
 
             # 如果是组的最后一个网格，插入分组汇总行
             if (i + 1) % grids_per_group == 0:
                 group_stat = geometric_group_stats[group_idx]
-                group_start = group_idx * grids_per_group
-                group_end = group_start + grids_per_group
-                group_profit = sum(
-                    geometric_result.base_amounts[j]
-                    * (geometric_result.price_points[j + 1] - geometric_result.buy_prices[j])
-                    for j in range(group_start, group_end)
-                )
+                group_buy_fee_total = group_stat.buy_fee_base_amount
+                group_sell_fee_total = group_stat.sell_fee_quote_amount
                 lines.append(
-                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | **{group_stat.base_amount:,.8f}** | | |"
+                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | **{group_buy_fee_total:,.8f}** | **{group_sell_fee_total:,.4f}** | **{group_stat.base_amount:,.8f}** | | |"
                 )
                 group_idx += 1
                 # 如果不是最后一组，添加分隔行
                 if group_idx < num_groups:
-                    lines.append("| | | | | | |")
+                    lines.append("| | | | | | | | |")
     else:
         # 没有分组时，正常输出所有网格
         for i in range(len(geometric_result.buy_prices)):
@@ -582,21 +640,20 @@ def format_output(
             quote = geometric_result.quote_amounts[i]
             base = geometric_result.base_amounts[i]
             return_pct = geometric_result.grid_returns[i]
-            sell_price = geometric_result.price_points[i + 1]
-            profit_amount = base * (sell_price - price)
+            buy_fee = geometric_result.buy_fee_base_amounts[i]
+            sell_fee = geometric_result.sell_fee_quote_amounts[i]
+            profit_amount = geometric_result.net_profit_amounts[i]
             total_quote_check += quote
+            total_buy_fee_check += buy_fee
+            total_sell_fee_check += sell_fee
             lines.append(
-                f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
+                f"| {i+1} | {price:,.4f} | {quote:,.4f} | {buy_fee:,.8f} | {sell_fee:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
             )
 
     # 合计行
-    total_profit = sum(
-        geometric_result.base_amounts[i]
-        * (geometric_result.price_points[i + 1] - geometric_result.buy_prices[i])
-        for i in range(len(geometric_result.buy_prices))
-    )
+    total_profit = sum(geometric_result.net_profit_amounts)
     lines.append(
-        f"| **合计** | | **{total_quote_check:,.4f}** | **{geometric_result.total_base_amount:,.8f}** | | |"
+        f"| **合计** | | **{total_quote_check:,.4f}** | **{total_buy_fee_check:,.8f}** | **{total_sell_fee_check:,.4f}** | **{geometric_result.total_base_amount:,.8f}** | | **{total_profit:,.4f}** |"
     )
     lines.append("")
 
@@ -607,7 +664,9 @@ def format_output(
         geometric_result.buy_prices[0] if geometric_result.buy_prices else geometric_result.price_points[0]
     )
     potential_base_at_lowest_geometric = (
-        geometric_result.total_quote_amount / lowest_geometric_price if lowest_geometric_price > 0 else 0.0
+        (geometric_result.total_quote_amount / lowest_geometric_price) * (1.0 - geometric_result.fee_rate)
+        if lowest_geometric_price > 0
+        else 0.0
     )
     geometric_base_diff = geometric_result.total_base_amount - potential_base_at_lowest_geometric
     geometric_base_ratio = (
@@ -645,11 +704,15 @@ def format_output(
     lines.append(f"### 买入网格详情（共 {len(arithmetic_result.buy_prices)} 个，等差）")
     lines.append("")
     lines.append(
-        f"| 层级 | 价格 ({quote_asset}) | 投入资金 ({quote_asset}) | 购买量 ({base_asset}) | 收益率 (%) | 收益额 ({quote_asset}) |"
+        f"| 层级 | 价格 ({quote_asset}) | 投入资金 ({quote_asset}) | 买入手续费 ({base_asset}) | 卖出手续费 ({quote_asset}) | 购买量 ({base_asset}) | 收益率 (%) | 收益额 ({quote_asset}) |"
     )
-    lines.append("|------|------|------|------|------|------|")
+    lines.append(
+        "|------|------------------|------------------|--------------------|--------------------|------------------|--------------|------------------|"
+    )
 
     total_quote_check = 0
+    total_buy_fee_check = 0
+    total_sell_fee_check = 0
     arithmetic_avg_return = (
         sum(arithmetic_result.grid_returns) / len(arithmetic_result.grid_returns)
         if arithmetic_result.grid_returns
@@ -667,30 +730,28 @@ def format_output(
             quote = arithmetic_result.quote_amounts[i]
             base = arithmetic_result.base_amounts[i]
             return_pct = arithmetic_result.grid_returns[i]
-            sell_price = arithmetic_result.price_points[i + 1]
-            profit_amount = base * (sell_price - price)
+            buy_fee = arithmetic_result.buy_fee_base_amounts[i]
+            sell_fee = arithmetic_result.sell_fee_quote_amounts[i]
+            profit_amount = arithmetic_result.net_profit_amounts[i]
             total_quote_check += quote
+            total_buy_fee_check += buy_fee
+            total_sell_fee_check += sell_fee
             lines.append(
-                f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
+                f"| {i+1} | {price:,.4f} | {quote:,.4f} | {buy_fee:,.8f} | {sell_fee:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
             )
 
             # 如果是组的最后一个网格，插入分组汇总行
             if (i + 1) % grids_per_group == 0:
                 group_stat = arithmetic_group_stats[group_idx]
-                group_start = group_idx * grids_per_group
-                group_end = group_start + grids_per_group
-                group_profit = sum(
-                    arithmetic_result.base_amounts[j]
-                    * (arithmetic_result.price_points[j + 1] - arithmetic_result.buy_prices[j])
-                    for j in range(group_start, group_end)
-                )
+                group_buy_fee_total = group_stat.buy_fee_base_amount
+                group_sell_fee_total = group_stat.sell_fee_quote_amount
                 lines.append(
-                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | **{group_stat.base_amount:,.8f}** | | |"
+                    f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | **{group_buy_fee_total:,.8f}** | **{group_sell_fee_total:,.4f}** | **{group_stat.base_amount:,.8f}** | | |"
                 )
                 group_idx += 1
                 # 如果不是最后一组，添加分隔行
                 if group_idx < num_groups:
-                    lines.append("| | | | | | |")
+                    lines.append("| | | | | | | | |")
     else:
         # 没有分组时，正常输出所有网格
         for i in range(len(arithmetic_result.buy_prices)):
@@ -698,21 +759,20 @@ def format_output(
             quote = arithmetic_result.quote_amounts[i]
             base = arithmetic_result.base_amounts[i]
             return_pct = arithmetic_result.grid_returns[i]
-            sell_price = arithmetic_result.price_points[i + 1]
-            profit_amount = base * (sell_price - price)
+            buy_fee = arithmetic_result.buy_fee_base_amounts[i]
+            sell_fee = arithmetic_result.sell_fee_quote_amounts[i]
+            profit_amount = arithmetic_result.net_profit_amounts[i]
             total_quote_check += quote
+            total_buy_fee_check += buy_fee
+            total_sell_fee_check += sell_fee
             lines.append(
-                f"| {i+1} | {price:,.4f} | {quote:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
+                f"| {i+1} | {price:,.4f} | {quote:,.4f} | {buy_fee:,.8f} | {sell_fee:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
             )
 
     # 合计行
-    total_profit = sum(
-        arithmetic_result.base_amounts[i]
-        * (arithmetic_result.price_points[i + 1] - arithmetic_result.buy_prices[i])
-        for i in range(len(arithmetic_result.buy_prices))
-    )
+    total_profit = sum(arithmetic_result.net_profit_amounts)
     lines.append(
-        f"| **合计** | | **{total_quote_check:,.4f}** | **{arithmetic_result.total_base_amount:,.8f}** | | |"
+        f"| **合计** | | **{total_quote_check:,.4f}** | **{total_buy_fee_check:,.8f}** | **{total_sell_fee_check:,.4f}** | **{arithmetic_result.total_base_amount:,.8f}** | | **{total_profit:,.4f}** |"
     )
     lines.append("")
 
@@ -723,7 +783,9 @@ def format_output(
         arithmetic_result.buy_prices[0] if arithmetic_result.buy_prices else arithmetic_result.price_points[0]
     )
     potential_base_at_lowest_arithmetic = (
-        arithmetic_result.total_quote_amount / lowest_arithmetic_price if lowest_arithmetic_price > 0 else 0.0
+        (arithmetic_result.total_quote_amount / lowest_arithmetic_price) * (1.0 - arithmetic_result.fee_rate)
+        if lowest_arithmetic_price > 0
+        else 0.0
     )
     arithmetic_base_diff = arithmetic_result.total_base_amount - potential_base_at_lowest_arithmetic
     arithmetic_base_ratio = (
@@ -922,6 +984,13 @@ def main():
         help="资金分配公比（> 0，默认 1 表示分组等额分配，group_ratio > 1 时高价组获得更多资金，0 < group_ratio < 1 时低价组获得更多资金）",
     )
     parser.add_argument(
+        "--fee-rate",
+        "-f",
+        type=float,
+        default=0.001,
+        help="买入与卖出的统一手续费率（小数），默认 0.001 表示 0.1%%",
+    )
+    parser.add_argument(
         "--output",
         "-o",
         type=str,
@@ -962,6 +1031,9 @@ def main():
     if args.group_ratio is not None and args.group_ratio <= 0:
         print("错误: 资金分配公比必须大于 0")
         return
+    if args.fee_rate is not None and args.fee_rate < 0:
+        print("错误: 手续费率不能为负")
+        return
 
     # 计算两种网格
     group_ratio = args.group_ratio if args.group_ratio is not None else 1.0
@@ -974,6 +1046,7 @@ def main():
         args.grids,
         args.groups,
         group_quote_shares,
+        args.fee_rate,
     )
 
     geometric_result = calculate_geometric_grid(
@@ -983,6 +1056,7 @@ def main():
         args.grids,
         args.groups,
         group_quote_shares,
+        args.fee_rate,
     )
 
     # 生成 Markdown 输出
