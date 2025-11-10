@@ -190,12 +190,13 @@ def calculate_arithmetic_grid(
     计算等差数列网格
 
     参数：
-        total_capital: 资金总额（报价资产数量）
-        min_price: 最低价
-        max_price: 最高价
-        num_grids: 网格数量 n
-        num_groups: 分组数量
-        group_quote_shares: 分组资金份额列表（长度为分组数量，顺序对应从低价组到高价组）
+        total_capital：用于构建网格的总资金，以报价资产数量计。
+        min_price：网格最低价，对应价格区间的起点。
+        max_price：网格最高价，对应价格区间的终点。
+        num_grids：网格数量，对应买入层级数量。
+        num_groups：资金分组数量，用于决定买入层级的资金划分。
+        group_quote_shares：各资金分组的报价资产份额列表，长度需等于分组数量，顺序从低价组到高价组。
+        fee_rate：单次交易手续费率，以十进制表示（例如 0.001 表示 0.1%）。
 
     返回：
         GridResult 对象
@@ -348,12 +349,13 @@ def calculate_geometric_grid(
     计算等比数列网格
 
     参数：
-        total_capital: 资金总额（报价资产数量）
-        min_price: 最低价
-        max_price: 最高价
-        num_grids: 网格数量 n
-        num_groups: 分组数量
-        group_quote_shares: 分组资金份额列表（长度为分组数量，顺序对应从低价组到高价组）
+        total_capital：用于构建网格的总资金，以报价资产数量计。
+        min_price：网格最低价，对应价格区间的起点。
+        max_price：网格最高价，对应价格区间的终点。
+        num_grids：网格数量，对应买入层级数量。
+        num_groups：资金分组数量，用于决定买入层级的资金划分。
+        group_quote_shares：各资金分组的报价资产份额列表，长度需等于分组数量，顺序从低价组到高价组。
+        fee_rate：单次交易手续费率，以十进制表示（例如 0.001 表示 0.1%）。
 
     返回：
         GridResult 对象
