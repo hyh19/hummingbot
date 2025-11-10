@@ -83,9 +83,9 @@ class GroupStats:
         base_amount (float): 当前分组购买的基础资产数量。
     """
 
-    group_number: int  # 组别编号（从 1 开始）
-    quote_amount: float  # 该组的资金总额（报价资产）
-    base_amount: float  # 该组购买的基础资产数量
+    group_number: int
+    quote_amount: float
+    base_amount: float
 
 
 @dataclass
@@ -111,21 +111,21 @@ class GridResult:
         fee_rate (float): 买入与卖出的统一手续费率。
     """
 
-    grid_type: str  # "arithmetic" 或 "geometric"
-    price_points: List[float]  # n+1 个价格点
-    buy_prices: List[float]  # n 个买入价格
-    quote_amounts: List[float]  # n 个网格投入的报价资产数量
-    base_amounts: List[float]  # n 个网格购买的基础资产数量
-    total_base_amount: float  # 总购买的基础资产数量
-    total_quote_amount: float  # 总投入的报价资产数量
-    average_price: float  # 平均价格 = 总投入资金 / 总购买的基础资产数量
-    grid_returns: List[float]  # n 个网格的收益率（百分比），每个网格买入后到下一个价格点卖出的收益率
-    net_profit_amounts: List[float]  # n 个网格的净收益金额（扣除手续费后的报价资产）
-    buy_fee_base_amounts: List[float]  # n 个网格的买入手续费金额（基础资产）
-    sell_fee_quote_amounts: List[float]  # n 个网格的卖出手续费金额（报价资产）
-    group_quote_totals: List[float]  # 每组的资金总额（报价资产）
-    group_base_amounts_per_grid: List[float]  # 每组中单个网格的基础资产购买量
-    fee_rate: float  # 手续费率（买入与卖出相同）
+    grid_type: str
+    price_points: List[float]
+    buy_prices: List[float]
+    quote_amounts: List[float]
+    base_amounts: List[float]
+    total_base_amount: float
+    total_quote_amount: float
+    average_price: float
+    grid_returns: List[float]
+    net_profit_amounts: List[float]
+    buy_fee_base_amounts: List[float]
+    sell_fee_quote_amounts: List[float]
+    group_quote_totals: List[float]
+    group_base_amounts_per_grid: List[float]
+    fee_rate: float
 
 
 def compute_group_quote_shares(
