@@ -20,25 +20,25 @@
 - 已知区间上下限与网格数量，计算单网格收益率：
 
 ```bash
-python3 learning/grid_calculator/geometric_grid_helper.py -M 30000 -m 15000 -g 12
+python3 geometric_grid_helper.py -M 30000 -m 15000 -g 12
 ```
 
 - 已知涨跌范围与单网格收益率，推导网格数量：
 
 ```bash
-python3 learning/grid_calculator/geometric_grid_helper.py -M 32000 -m 16000 -r 0.02
+python3 geometric_grid_helper.py -M 32000 -m 16000 -r 0.02
 ```
 
 - 不提供最高价时，可通过最低价、网格数量和单网格收益率计算最高价：
 
 ```bash
-python3 learning/grid_calculator/geometric_grid_helper.py -m 12000 -g 10 -r 0.015
+python3 geometric_grid_helper.py -m 12000 -g 10 -r 0.015
 ```
 
 - 不提供最低价时，可通过最高价、网格数量和单网格收益率计算最低价：
 
 ```bash
-python3 learning/grid_calculator/geometric_grid_helper.py -M 28000 -g 8 -r 0.012
+python3 geometric_grid_helper.py -M 28000 -g 8 -r 0.012
 ```
 
 ## 输出说明
@@ -70,16 +70,16 @@ def parse_args() -> argparse.Namespace:
 --------
 
 示例 1：已知最高价、最低价与网格数量，求单网格收益率
-  python3 learning/grid_calculator/geometric_grid_helper.py -M 30000 -m 15000 -g 12
+  python3 geometric_grid_helper.py -M 30000 -m 15000 -g 12
 
 示例 2：已知最高价、最低价与单网格收益率，推导网格数量
-  python3 learning/grid_calculator/geometric_grid_helper.py -M 32000 -m 16000 -r 0.02
+  python3 geometric_grid_helper.py -M 32000 -m 16000 -r 0.02
 
 示例 3：已知最低价、网格数量与单网格收益率，推导最高价
-  python3 learning/grid_calculator/geometric_grid_helper.py -m 12000 -g 10 -r 0.015
+  python3 geometric_grid_helper.py -m 12000 -g 10 -r 0.015
 
 示例 4：已知最高价、网格数量与单网格收益率，推导最低价
-  python3 learning/grid_calculator/geometric_grid_helper.py -M 28000 -g 8 -r 0.012
+  python3 geometric_grid_helper.py -M 28000 -g 8 -r 0.012
 
 注意事项
 --------
