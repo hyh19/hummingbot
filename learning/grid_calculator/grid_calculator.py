@@ -216,115 +216,141 @@ def calculate_arithmetic_grid(
         - 在每组内，根据该组买入价格的总和计算单个网格的基础资产购买量
         - 每组内的网格购买量一致，不同组之间的购买量根据资金份额不同而变化
     """
-    # 计算价格差（基于 n 个买入层级）
-    # 价格分布为 n+1 个点，从 P_min 到 P_max
-    # 买入层级为 n 个点，从 P_min 到某个价格
-    # 买入层级的价格范围是 P_min 到 P_buy_max，其中 P_buy_max 是买入层级的最高价
-
-    # 如果价格分布有 n+1 个点，买入层级有 n 个点
-    # 价格差 = (P_max - P_min) / n
+    # 计算等差价格间隔
     price_diff = (max_price - min_price) / num_grids
 
-    # 生成 n+1 个价格点（包括最高价）
+    # 生成包含最高价的等差价格点列表
     price_points = [min_price + i * price_diff for i in range(num_grids + 1)]
-    # 确保最后一个价格点精确等于 max_price
+
+    # 将末尾价格修正为最大值，消除浮点误差
     price_points[-1] = max_price
 
-    # 买入层级：前 n 个价格点（不包括最高价）
+    # 截取买入使用的价格序列
     buy_prices = price_points[:num_grids]
 
+    # 验证分组资金列表长度是否匹配
     if len(group_quote_shares) != num_groups:
         raise ValueError("group_quote_shares 的长度必须等于分组数量")
 
+    # 验证分组资金总和是否等于总资金
     if abs(sum(group_quote_shares) - total_capital) > 1e-6:
         raise ValueError("group_quote_shares 的总和必须等于总资金")
 
-    # 计算每组分配的网格数量（每组均分的网格数，取整，最后一组如有余数需特殊处理）
+    # 计算每组应包含的网格数量
     grids_per_group = num_grids // num_groups
 
-    # 每个网格投入的报价资产成本（含手续费前）
+    # 初始化单个网格的报价资产成本列表
     quote_amounts: List[float] = []
-    # 每个网格实际建仓的基础资产数量（扣除买入手续费后）
+
+    # 初始化单个网格的基础资产数量列表
     base_amounts: List[float] = []
-    # 各分组分配的报价资产总额
+
+    # 初始化各分组的报价资产总额列表
     group_quote_totals: List[float] = []
-    # 各分组内单个网格的基础资产购入量
+
+    # 初始化各分组单网格基础资产数量列表
     group_base_amounts_per_grid: List[float] = []
-    # 每个网格对应的买入手续费（以基础资产计）
+
+    # 初始化单个网格买入手续费列表
     buy_fee_base_amounts: List[float] = []
 
+    # 遍历每个分组
     for group_idx in range(num_groups):
-        # 计算当前分组对应的网格起始下标，保证顺序分配
+        # 计算当前分组的起始索引位置
         start_idx = group_idx * grids_per_group
-        # 计算当前分组的结束下标（切片上界，不含自身），保持固定网格数量
+
+        # 计算当前分组的结束索引位置
         end_idx = start_idx + grids_per_group
-        # 取出当前分组负责的买入价格列表，用于后续资金分配计算
+
+        # 截取当前分组负责的买入价格序列
         group_prices = buy_prices[start_idx:end_idx]
 
-        # 取出当前分组应分配到的报价资产资金份额
+        # 提取当前分组的报价资产份额
         group_quote_share = group_quote_shares[group_idx]
 
-        # 计算该组内所有买入价格的总和
+        # 计算当前分组价格之和
         price_sum_group = sum(group_prices)
-        # 计算本组中每个网格在扣除手续费之前应购买的基础资产数量
-        # 如果分母为0则设为0.0，避免除以零
+
+        # 计算每个网格的建仓基础资产数量（未扣手续费）
         base_amount_before_fee_per_grid = group_quote_share / price_sum_group if price_sum_group > 0 else 0.0
-        # 计算建仓时每个网格需支付的基础资产手续费（以基础资产计）
+
+        # 计算每个网格买入手续费（以基础资产计）
         buy_fee_base_per_grid = base_amount_before_fee_per_grid * fee_rate
-        # 计算每个网格实际建仓后获得的基础资产数量（已扣除手续费）
+
+        # 计算每个网格扣除手续费后的实际基础资产数量
         base_amount_after_fee_per_grid = base_amount_before_fee_per_grid - buy_fee_base_per_grid
 
+        # 遍历分组内的每个价格
         for price in group_prices:
-            # 添加当前网格实际获得的基础资产数量（已扣除手续费）
+            # 记录当前网格的实际基础资产数量
             base_amounts.append(base_amount_after_fee_per_grid)
-            # 添加当前网格买入时产生的基础资产手续费
+
+            # 记录当前网格的买入手续费
             buy_fee_base_amounts.append(buy_fee_base_per_grid)
-            # 计算当前网格理论买入所需的报价资产（未含手续费）
+
+            # 计算当前网格的报价资产成本
             gross_buy_quote = base_amount_before_fee_per_grid * price
-            # 添加当前网格实际买入所消耗的报价资产
+
+            # 记录当前网格的报价资产成本
             quote_amounts.append(gross_buy_quote)
 
-        # 记录当前分组分配到的总报价资产（资金份额）
+        # 记录当前分组的报价资产总额
         group_quote_totals.append(group_quote_share)
-        # 记录当前分组内每个网格实际购入的基础资产数量（已扣除手续费）
+
+        # 记录当前分组单网格的基础资产数量
         group_base_amounts_per_grid.append(base_amount_after_fee_per_grid)
 
-    # 计算所有网格的总报价资产消耗
+    # 统计所有网格的报价资产总额
     total_quote_amount = sum(quote_amounts)
-    # 计算所有网格实际获得的基础资产总量
+
+    # 统计所有网格的基础资产总量
     total_base_amount = sum(base_amounts)
-    # 计算加权平均买入价格（总报价资产 / 总基础资产），若总基础资产为0，则结果为0.0
+
+    # 计算整体加权平均买入价格
     average_price = total_quote_amount / total_base_amount if total_base_amount > 0 else 0.0
 
-    # 初始化收益率列表，用于存储每个网格的收益率（百分比）
+    # 初始化网格收益率列表
     grid_returns: List[float] = []
-    # 初始化净收益列表，用于存储每个网格的净收益（扣除手续费后）
+
+    # 初始化网格净收益列表
     net_profit_amounts: List[float] = []
-    # 初始化卖出手续费列表，用于存储每个网格卖出时产生的手续费（以报价资产计）
+
+    # 初始化网格卖出手续费列表
     sell_fee_quote_amounts: List[float] = []
 
+    # 遍历每个买入网格
     for i in range(len(buy_prices)):
-        # 获取下一个价格点，作为当前网格的卖出价（即套利时的卖出价格）
+        # 取出对应的卖出价格
         sell_price = price_points[i + 1]
-        # 获取当前网格实际购入的基础资产数量（已扣除买入手续费）
+
+        # 取出该网格的基础资产持仓
         base_amount = base_amounts[i]
-        # 获取当前网格建仓消耗的报价资产（即买入时实际花费的USDT等）
+
+        # 取出该网格的买入总成本
         total_buy_cost = quote_amounts[i]
-        # 计算当前网格卖出时获得的总报价资产（卖出价格 × 持仓基础币数量）
+
+        # 计算该网格卖出时获得的报价资产金额
         sell_quote = base_amount * sell_price
-        # 计算卖出时扣除的手续费（以报价资产USDT计）
+
+        # 计算该网格卖出时的手续费
         sell_fee = sell_quote * fee_rate
-        # 记录当前网格卖出时产生的手续费
+
+        # 记录该网格的卖出手续费
         sell_fee_quote_amounts.append(sell_fee)
-        # 计算当前网格完成买卖一次的净收益（卖出收入-手续费-买入成本）
+
+        # 计算该网格的净收益
         net_profit = sell_quote - sell_fee - total_buy_cost
-        # 记录当前网格的净收益（以报价资产计，已扣手续费）
+
+        # 记录该网格的净收益
         net_profit_amounts.append(net_profit)
-        # 计算当前网格的收益率（百分比），避免除零时返回0
+
+        # 计算该网格的收益率百分比
         return_pct = net_profit / total_buy_cost * 100.0 if total_buy_cost > 0 else 0.0
-        # 记录当前网格的收益率（百分比）
+
+        # 记录该网格的收益率百分比
         grid_returns.append(return_pct)
 
+    # 返回等差网格的完整结果
     return GridResult(
         grid_type="arithmetic",
         price_points=price_points,
@@ -375,120 +401,141 @@ def calculate_geometric_grid(
         - 在每组内，根据该组买入价格的总和计算单个网格的基础资产购买量
         - 每组内的网格购买量一致，不同组之间的购买量根据资金份额不同而变化
     """
-    # 计算公比
-    # 价格分布有 n+1 个点，买入层级有 n 个点
-    # 买入层级的最高价对应价格分布的第 n 个点
-    # 如果价格分布从 P_min 到 P_max，共 n+1 个点
-    # 那么买入层级从 P_min 到某个价格，共 n 个点
-    # 公比 r = (买入层级最高价 / P_min)^(1/(n-1))
-    # 但为了生成 n+1 个价格点，我们使用 r = (P_max / P_min)^(1/n)
-    # 根据等比数列公式计算公比 r，使得 P_min * r^n = P_max，
-    # 其中 n 为网格数量（也是买入层级数量），确保价格在对数尺度上均匀分布
+    # 计算等比价格公比
     ratio = (max_price / min_price) ** (1.0 / num_grids)
 
-    # 生成 n+1 个价格点（包括最高价）
-    # 生成 n+1 个价格点：P_i = P_min * r^i，其中 i ∈ [0, n]，
-    # 最后一个点作为卖出参考价，保证序列严格覆盖 [P_min, P_max]
+    # 生成包含最高价的等比价格点列表
     price_points = [min_price * (ratio**i) for i in range(num_grids + 1)]
-    # 确保最后一个价格点精确等于 max_price
+
+    # 将末尾价格修正为最大值，消除浮点误差影响
     price_points[-1] = max_price
 
-    # 买入层级：前 n 个价格点（不包括最高价）
+    # 截取买入使用的价格序列
     buy_prices = price_points[:num_grids]
 
+    # 验证分组资金列表长度是否匹配
     if len(group_quote_shares) != num_groups:
         raise ValueError("group_quote_shares 的长度必须等于分组数量")
 
+    # 验证分组资金总和是否等于总资金
     if abs(sum(group_quote_shares) - total_capital) > 1e-6:
         raise ValueError("group_quote_shares 的总和必须等于总资金")
 
-    # 假设网格数量可以被分组数量整除，将价格区间按顺序切分到各资金分组
+    # 计算每组应包含的网格数量
     grids_per_group = num_grids // num_groups
 
-    # 记录每个网格买入时投入的报价资产（成交价 * 购入量，未扣手续费）
+    # 初始化单个网格的报价资产成本列表
     quote_amounts: List[float] = []
-    # 记录每个网格扣除手续费后的实际基础资产持仓
+
+    # 初始化单个网格的基础资产数量列表
     base_amounts: List[float] = []
-    # 记录每个资金分组分配到的报价资产份额
+
+    # 初始化各分组的报价资产总额列表
     group_quote_totals: List[float] = []
-    # 记录每个分组中单个网格需要购入的基础资产数量
+
+    # 初始化各分组单网格基础资产数量列表
     group_base_amounts_per_grid: List[float] = []
-    # 记录每个网格买入阶段对应的基础资产手续费
+
+    # 初始化单个网格买入手续费列表
     buy_fee_base_amounts: List[float] = []
 
+    # 遍历每个分组
     for group_idx in range(num_groups):
-        # 计算当前分组的起始索引（该组的第一个网格在整体买入价格列表中的位置）
+        # 计算当前分组的起始索引位置
         start_idx = group_idx * grids_per_group
-        # 计算该分组的结束索引（该组最后一个网格后一位的索引，左闭右开区间）
+
+        # 计算当前分组的结束索引位置
         end_idx = start_idx + grids_per_group
-        # 从整体买入价格列表中切片得到当前分组对应的买入价格子列表
+
+        # 截取当前分组负责的买入价格序列
         group_prices = buy_prices[start_idx:end_idx]
 
-        # 取出当前分组应分配到的报价资产份额（即该组用于买入的资金）
+        # 提取当前分组的报价资产份额
         group_quote_share = group_quote_shares[group_idx]
 
-        # 对该组内的买入价格求和 ΣP_i，用于推导每个网格应投入的基础资产
+        # 计算当前分组价格之和
         price_sum_group = sum(group_prices)
-        # 基础资产买入量来源于：分配给该组的总报价资产 Q_group
-        # 满足 Σ(P_i * base_per_grid) = Q_group，因此 base_per_grid = Q_group / ΣP_i
+
+        # 计算每个网格的建仓基础资产数量（未扣手续费）
         base_amount_before_fee_per_grid = group_quote_share / price_sum_group if price_sum_group > 0 else 0.0
-        # 计算每个网格买入阶段应扣除的基础资产手续费（以基础资产计），即手续费 = 未扣手续费的基础资产买入量 * 手续费率
+
+        # 计算每个网格买入手续费（以基础资产计）
         buy_fee_base_per_grid = base_amount_before_fee_per_grid * fee_rate
-        # 买入手续费以基础资产计提：base_fee = base_per_grid * fee_rate
-        # 手续费扣除后得到实际的建仓基础资产数量
+
+        # 计算每个网格扣除手续费后的实际基础资产数量
         base_amount_after_fee_per_grid = base_amount_before_fee_per_grid - buy_fee_base_per_grid
 
+        # 遍历分组内的每个价格
         for price in group_prices:
-            # 记录当前网格实际购入的基础资产数量（已扣除买入手续费）
+            # 记录当前网格的实际基础资产数量
             base_amounts.append(base_amount_after_fee_per_grid)
-            # 记录当前网格买入时产生的基础资产手续费
+
+            # 记录当前网格的买入手续费
             buy_fee_base_amounts.append(buy_fee_base_per_grid)
-            # 以未扣手续费的基础资产量乘以买入价得到该网格的报价资产成本
+
+            # 计算当前网格的报价资产成本
             gross_buy_quote = base_amount_before_fee_per_grid * price
-            # 记录当前网格买入时投入的报价资产金额（此处未扣除买入手续费，仅为成交金额 base*price）
+
+            # 记录当前网格的报价资产成本
             quote_amounts.append(gross_buy_quote)
 
-        # 记录该分组实际获得的报价资产总额（即分配到的资金份额，供后续统计用）
+        # 记录当前分组的报价资产总额
         group_quote_totals.append(group_quote_share)
-        # 记录该分组内，单个网格实际买入（扣除手续费后）的基础资产数量（便于展示组别配置）
+
+        # 记录当前分组单网格的基础资产数量
         group_base_amounts_per_grid.append(base_amount_after_fee_per_grid)
 
-    # 计算总投入的报价资产金额（即所有网格买入时实际投入的资金总和，未扣除买入手续费，只作为成交金额之和）
+    # 统计所有网格的报价资产总额
     total_quote_amount = sum(quote_amounts)
-    # 计算总基础资产买入量（所有网格买入后获得的基础资产总和，已扣除买入手续费）
+
+    # 统计所有网格的基础资产总量
     total_base_amount = sum(base_amounts)
-    # 加权平均成本价：P_avg = Σ(报价资产成本) / Σ(扣费后的基础资产数量)
+
+    # 计算整体加权平均买入价格
     average_price = total_quote_amount / total_base_amount if total_base_amount > 0 else 0.0
 
-    # 初始化各网格卖出阶段产生的报价资产手续费数组
+    # 初始化网格卖出手续费列表
     sell_fee_quote_amounts: List[float] = []
-    # 初始化各网格的实际净收益（已扣除费用）数组
+
+    # 初始化网格净收益列表
     net_profit_amounts: List[float] = []
-    # 初始化各网格的收益率（百分比）数组
+
+    # 初始化网格收益率列表
     grid_returns: List[float] = []
 
+    # 遍历每个买入网格
     for i in range(len(buy_prices)):
-        # 取该网格对应的卖出价（即当前买入价的下一个价格点）
+        # 取出对应的卖出价格
         sell_price = price_points[i + 1]
-        # 获取该网格买入获得的基础资产数量（已扣买入手续费）
+
+        # 取出该网格的基础资产持仓
         base_amount = base_amounts[i]
-        # 获取该网格买入时的总成本（报价货币计，未扣买入手续费）
+
+        # 取出该网格的买入总成本
         total_buy_cost = quote_amounts[i]
-        # 计算该网格卖出时获得的报价资产金额（未扣卖出手续费）
+
+        # 计算该网格卖出时获得的报价资产金额
         sell_quote = base_amount * sell_price
-        # 计算该网格卖出时产生的手续费（报价资产计）
+
+        # 计算该网格卖出时的手续费
         sell_fee = sell_quote * fee_rate
+
         # 记录该网格的卖出手续费
         sell_fee_quote_amounts.append(sell_fee)
-        # 计算该网格的净收益（卖出收入-卖出手续费-买入成本）
+
+        # 计算该网格的净收益
         net_profit = sell_quote - sell_fee - total_buy_cost
+
         # 记录该网格的净收益
         net_profit_amounts.append(net_profit)
-        # 计算该网格的收益率（百分比）
+
+        # 计算该网格的收益率百分比
         grid_return = net_profit / total_buy_cost * 100.0 if total_buy_cost > 0 else 0.0
-        # 记录该网格的收益率
+
+        # 记录该网格的收益率百分比
         grid_returns.append(grid_return)
 
+    # 返回等比网格的完整结果
     return GridResult(
         grid_type="geometric",
         price_points=price_points,
