@@ -619,294 +619,448 @@ def format_output(
     返回：
         Markdown 格式的字符串
     """
+    # 将输入的交易对拆分为基础资产和报价资产
     base_asset, quote_asset = trading_pair.split("-")
+    # 初始化用于存储 Markdown 行的列表
     lines = []
 
-    # 一级标题
+    # 添加一级标题，指明输出的整体主题
     lines.append("# 网格交易计算结果")
+    # 添加空行，使标题与正文之间保留间距
     lines.append("")
 
-    # 输入参数
+    # 添加输入参数部分的标题
     lines.append("## 输入参数")
+    # 添加空行，使章节结构更加清晰
     lines.append("")
+    # 添加交易对信息，展示基础资产和报价资产
     lines.append(f"- **交易对**: {trading_pair}")
+    # 添加资金总额信息，标明投入的报价资产规模
     lines.append(f"- **资金总额**: {total_capital:,.2f} {quote_asset}")
+    # 添加价格区间信息，说明策略适用的价格范围
     lines.append(f"- **价格区间**: {min_price:,.2f} - {max_price:,.2f} {quote_asset}")
+    # 添加网格数量信息，展示划分层数
     lines.append(f"- **网格数量**: {num_grids}")
+    # 判断是否启用了分组模式
     if num_groups > 1:
+        # 添加分组数量信息，说明每组包含的网格数
         lines.append(f"- **分组数量**: {num_groups}（每组 {num_grids // num_groups} 个网格）")
+        # 添加资金分配公比，展示不同分组的资金占比
         lines.append(f"- **资金分配公比**: {fund_ratio:.4f}")
+    # 计算手续费率的百分比表示形式
     fee_rate_pct = geometric_result.fee_rate * 100
+    # 添加手续费率说明，明确买入与卖出的费用
     lines.append(f"- **手续费率**: {fee_rate_pct:.4f}%（买入与卖出相同，买入按基础资产计费，卖出按报价资产计费）")
+    # 添加空行，结束输入参数部分
     lines.append("")
 
-    # 输出等比数列网格结果
+    # 添加等比网格的章节标题
     lines.append("## 等比数列网格")
+    # 添加空行，使章节结构更加清晰
     lines.append("")
 
     # 价格分布点
+    # 添加价格分布点的小节标题，说明价格点数量
     lines.append(f"### 价格分布点（共 {len(geometric_result.price_points)} 个，等比）")
+    # 添加空行，使表格与标题之间留白
     lines.append("")
+    # 初始化价格表格行的容器
     price_table_rows = []
+    # 遍历等比价格点，构建表格行
     for i, price in enumerate(geometric_result.price_points):
+        # 判定当前价格点是否为最高价
         marker = "（最高价，不含买单）" if i == len(geometric_result.price_points) - 1 else ""
+        # 添加对应的表格行，包含序号、价格和备注
         price_table_rows.append(f"| {i+1} | {price:,.4f} {quote_asset} | {marker} |")
+    # 添加表格的表头
     lines.append("| 序号 | 价格 | 备注 |")
+    # 添加表格的分隔线
     lines.append("|------|------|------|")
+    # 添加所有价格行到输出列表
     lines.extend(price_table_rows)
+    # 添加空行，结束价格分布点小节
     lines.append("")
 
-    # 买入网格详情
+    # 添加等比买入网格详情小节标题
     lines.append(f"### 买入网格详情（共 {len(geometric_result.buy_prices)} 个，等比）")
+    # 添加空行，增强可读性
     lines.append("")
+    # 添加买入网格详情的表头说明
     lines.append(
         f"| 层级 | 价格 ({quote_asset}) | 投入资金 ({quote_asset}) | 买入手续费 ({base_asset}) | 卖出手续费 ({quote_asset}) | 购买量 ({base_asset}) | 收益率 (%) | 收益额 ({quote_asset}) |"
     )
+    # 添加表格分隔行，保持 Markdown 标准
     lines.append(
         "|------|------------------|------------------|--------------------|--------------------|------------------|--------------|------------------|"
     )
 
+    # 初始化报价资产总额用于校验
     total_quote_check = 0
+    # 计算等比网格的平均收益率
     geometric_avg_return = (
         sum(geometric_result.grid_returns) / len(geometric_result.grid_returns)
         if geometric_result.grid_returns
         else 0.0
     )
 
-    # 如果有分组，在表格中插入分组汇总
+    # 判断是否需要在表格中插入分组汇总
     if num_groups > 1:
+        # 计算每个分组的统计数据
         geometric_group_stats = calculate_group_stats(geometric_result, num_groups)
+        # 计算每组所包含的网格数量
         grids_per_group = len(geometric_result.buy_prices) // num_groups
+        # 初始化分组索引，用于追踪当前分组
         group_idx = 0
 
+        # 遍历等比网格的买入价格数据
         for i in range(len(geometric_result.buy_prices)):
+            # 获取当前层级的买入价格
             price = geometric_result.buy_prices[i]
+            # 获取当前层级投入的报价资产
             quote = geometric_result.quote_amounts[i]
+            # 获取当前层级买入的基础资产数量
             base = geometric_result.base_amounts[i]
+            # 获取当前层级的收益率
             return_pct = geometric_result.grid_returns[i]
+            # 获取当前层级的买入手续费（以基础资产计）
             buy_fee = geometric_result.buy_fee_base_amounts[i]
+            # 获取当前层级的卖出手续费（以报价资产计）
             sell_fee = geometric_result.sell_fee_quote_amounts[i]
+            # 获取当前层级的净收益额
             profit_amount = geometric_result.net_profit_amounts[i]
+            # 累加投入的报价资产，用于校验总额
             total_quote_check += quote
+            # 添加当前层级的详细表格行
             lines.append(
                 f"| {i+1} | {price:,.4f} | {quote:,.4f} | {buy_fee:,.8f} | {sell_fee:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
             )
 
-            # 如果是组的最后一个网格，插入分组汇总行
+            # 判断当前层级是否为当前分组的最后一个网格
             if (i + 1) % grids_per_group == 0:
+                # 获取相应分组的统计数据
                 group_stat = geometric_group_stats[group_idx]
+                # 添加分组合计行，呈现资金和数量汇总
                 lines.append(
                     f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | | | **{group_stat.base_amount:,.8f}** | | |"
                 )
+                # 递增分组索引，转向下一组
                 group_idx += 1
-                # 如果不是最后一组，添加分隔行
+                # 若当前分组不是最后一组，则添加空行作为分隔
                 if group_idx < num_groups:
+                    # 添加空白分隔行，分隔不同分组的数据
                     lines.append("| | | | | | | | |")
     else:
-        # 没有分组时，正常输出所有网格
+        # 当未启用分组时直接输出所有网格数据
         for i in range(len(geometric_result.buy_prices)):
+            # 获取当前层级的买入价格
             price = geometric_result.buy_prices[i]
+            # 获取当前层级投入的报价资产
             quote = geometric_result.quote_amounts[i]
+            # 获取当前层级买入的基础资产数量
             base = geometric_result.base_amounts[i]
+            # 获取当前层级的收益率
             return_pct = geometric_result.grid_returns[i]
+            # 获取当前层级的买入手续费（以基础资产计）
             buy_fee = geometric_result.buy_fee_base_amounts[i]
+            # 获取当前层级的卖出手续费（以报价资产计）
             sell_fee = geometric_result.sell_fee_quote_amounts[i]
+            # 获取当前层级的净收益额
             profit_amount = geometric_result.net_profit_amounts[i]
+            # 累加投入的报价资产，用于校验总额
             total_quote_check += quote
+            # 添加当前层级的详细表格行
             lines.append(
                 f"| {i+1} | {price:,.4f} | {quote:,.4f} | {buy_fee:,.8f} | {sell_fee:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
             )
 
     # 合计行
+    # 添加等比网格的合计行，用于呈现总投入与总购买量
     lines.append(
         f"| **合计** | | **{total_quote_check:,.4f}** | | | **{geometric_result.total_base_amount:,.8f}** | | |"
     )
+    # 添加空行，为后续统计小节留白
     lines.append("")
 
-    # 汇总统计
+    # 添加等比汇总统计的小节标题
     lines.append("### 汇总统计（等比）")
+    # 添加空行，增强排版可读性
     lines.append("")
+    # 获取等比网格的最低买入价格，若无买单则取价格点
     lowest_geometric_price = (
         geometric_result.buy_prices[0] if geometric_result.buy_prices else geometric_result.price_points[0]
     )
+    # 计算按最低价全仓买入时能够获取的基础资产数量
     potential_base_at_lowest_geometric = (
         (geometric_result.total_quote_amount / lowest_geometric_price) * (1.0 - geometric_result.fee_rate)
         if lowest_geometric_price > 0
         else 0.0
     )
+    # 计算实际购买量与最低价全仓购买量之间的差值
     geometric_base_diff = geometric_result.total_base_amount - potential_base_at_lowest_geometric
+    # 计算实际购买量相对于最低价全仓的比例
     geometric_base_ratio = (
         geometric_result.total_base_amount / potential_base_at_lowest_geometric * 100
         if potential_base_at_lowest_geometric > 0
         else 0.0
     )
+    # 添加总购买量说明，突出基础资产的持有量
     lines.append(f"- **总购买量**: {geometric_result.total_base_amount:,.8f} {base_asset}")
+    # 添加总投入资金说明，体现报价资产支出
     lines.append(f"- **总投入资金**: {geometric_result.total_quote_amount:,.2f} {quote_asset}")
+    # 添加平均价格说明，展示整体持仓成本
     lines.append(f"- **平均价格**: {geometric_result.average_price:,.4f} {quote_asset}/{base_asset}")
+    # 添加最低价全仓购买量说明，用于对比策略效果
     lines.append(f"- **最低价全仓购买量**: {potential_base_at_lowest_geometric:,.8f} {base_asset}")
+    # 添加与最低价全仓比较的说明，包含绝对值与百分比
     lines.append(
         f"- **与最低价全仓比较**: {geometric_base_diff:+,.8f} {base_asset}（实际为最低价全仓的 {geometric_base_ratio:,.2f}%）"
     )
+    # 添加平均单网格收益率说明，概述预期收益水平
     lines.append(f"- **平均单网格收益率**: {geometric_avg_return:,.2f}%")
+    # 添加空行，结束等比汇总统计小节
     lines.append("")
 
     # 输出等差数列网格结果
+    # 添加等差网格的章节标题
     lines.append("## 等差数列网格")
+    # 添加空行，保持章节层次分明
     lines.append("")
 
-    # 价格分布点
+    # 添加等差价格分布点的小节标题
     lines.append(f"### 价格分布点（共 {len(arithmetic_result.price_points)} 个，等差）")
+    # 添加空行，为表格留出空白
     lines.append("")
+    # 初始化等差价格表格行的容器
     price_table_rows = []
+    # 遍历等差价格点，构建表格数据
     for i, price in enumerate(arithmetic_result.price_points):
+        # 判定当前价格点是否为最高价
         marker = "（最高价，不含买单）" if i == len(arithmetic_result.price_points) - 1 else ""
+        # 添加表格行，包含序号、价格和备注
         price_table_rows.append(f"| {i+1} | {price:,.4f} {quote_asset} | {marker} |")
+    # 添加表格表头
     lines.append("| 序号 | 价格 | 备注 |")
+    # 添加表格分隔线，保持 Markdown 规范
     lines.append("|------|------|------|")
+    # 添加所有表格数据行
     lines.extend(price_table_rows)
+    # 添加空行，结束等差价格分布点小节
     lines.append("")
 
-    # 买入网格详情
+    # 添加等差买入网格详情的小节标题
     lines.append(f"### 买入网格详情（共 {len(arithmetic_result.buy_prices)} 个，等差）")
+    # 添加空行，增强可读性
     lines.append("")
+    # 添加等差买入网格详情表头
     lines.append(
         f"| 层级 | 价格 ({quote_asset}) | 投入资金 ({quote_asset}) | 买入手续费 ({base_asset}) | 卖出手续费 ({quote_asset}) | 购买量 ({base_asset}) | 收益率 (%) | 收益额 ({quote_asset}) |"
     )
+    # 添加表格分隔线，确保格式统一
     lines.append(
         "|------|------------------|------------------|--------------------|--------------------|------------------|--------------|------------------|"
     )
 
+    # 重置报价资产总额校验变量
     total_quote_check = 0
+    # 计算等差网格的平均收益率
     arithmetic_avg_return = (
         sum(arithmetic_result.grid_returns) / len(arithmetic_result.grid_returns)
         if arithmetic_result.grid_returns
         else 0.0
     )
 
-    # 如果有分组，在表格中插入分组汇总
+    # 判断是否需要在等差表格中插入分组汇总
     if num_groups > 1:
+        # 计算等差网格各分组的汇总数据
         arithmetic_group_stats = calculate_group_stats(arithmetic_result, num_groups)
+        # 计算每个分组包含的网格数
         grids_per_group = len(arithmetic_result.buy_prices) // num_groups
+        # 初始化分组索引，追踪当前分组
         group_idx = 0
 
+        # 遍历等差网格的买入数据
         for i in range(len(arithmetic_result.buy_prices)):
+            # 获取当前层级的买入价格
             price = arithmetic_result.buy_prices[i]
+            # 获取当前层级投入的报价资产
             quote = arithmetic_result.quote_amounts[i]
+            # 获取当前层级买入的基础资产数量
             base = arithmetic_result.base_amounts[i]
+            # 获取当前层级的收益率
             return_pct = arithmetic_result.grid_returns[i]
+            # 获取当前层级的买入手续费（以基础资产计）
             buy_fee = arithmetic_result.buy_fee_base_amounts[i]
+            # 获取当前层级的卖出手续费（以报价资产计）
             sell_fee = arithmetic_result.sell_fee_quote_amounts[i]
+            # 获取当前层级的净收益额
             profit_amount = arithmetic_result.net_profit_amounts[i]
+            # 累加投入的报价资产，用于校验总额
             total_quote_check += quote
+            # 添加当前层级的表格行
             lines.append(
                 f"| {i+1} | {price:,.4f} | {quote:,.4f} | {buy_fee:,.8f} | {sell_fee:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
             )
 
-            # 如果是组的最后一个网格，插入分组汇总行
+            # 判断是否到达当前分组的最后一个网格
             if (i + 1) % grids_per_group == 0:
+                # 获取当前分组的汇总结果
                 group_stat = arithmetic_group_stats[group_idx]
+                # 添加分组合计行，展示投入与购买量汇总
                 lines.append(
                     f"| **第 {group_stat.group_number} 组合计** | | **{group_stat.quote_amount:,.4f}** | | | **{group_stat.base_amount:,.8f}** | | |"
                 )
+                # 分组索引递增，指向下一组
                 group_idx += 1
-                # 如果不是最后一组，添加分隔行
+                # 若仍有后续分组，则添加空白分隔行
                 if group_idx < num_groups:
+                    # 添加空白分隔行，分隔不同分组的数据
                     lines.append("| | | | | | | | |")
     else:
-        # 没有分组时，正常输出所有网格
+        # 未启用分组时直接输出所有等差网格数据
         for i in range(len(arithmetic_result.buy_prices)):
+            # 获取当前层级的买入价格
             price = arithmetic_result.buy_prices[i]
+            # 获取当前层级投入的报价资产
             quote = arithmetic_result.quote_amounts[i]
+            # 获取当前层级买入的基础资产数量
             base = arithmetic_result.base_amounts[i]
+            # 获取当前层级的收益率
             return_pct = arithmetic_result.grid_returns[i]
+            # 获取当前层级的买入手续费（以基础资产计）
             buy_fee = arithmetic_result.buy_fee_base_amounts[i]
+            # 获取当前层级的卖出手续费（以报价资产计）
             sell_fee = arithmetic_result.sell_fee_quote_amounts[i]
+            # 获取当前层级的净收益额
             profit_amount = arithmetic_result.net_profit_amounts[i]
+            # 累加投入的报价资产，用于校验总额
             total_quote_check += quote
+            # 添加当前层级的表格行
             lines.append(
                 f"| {i+1} | {price:,.4f} | {quote:,.4f} | {buy_fee:,.8f} | {sell_fee:,.4f} | {base:,.8f} | {return_pct:,.2f} | {profit_amount:,.4f} |"
             )
 
     # 合计行
+    # 添加等差网格的合计行，用于呈现总投入与总购买量
     lines.append(
         f"| **合计** | | **{total_quote_check:,.4f}** | | | **{arithmetic_result.total_base_amount:,.8f}** | | |"
     )
+    # 添加空行，为后续统计小节留白
     lines.append("")
 
-    # 汇总统计
+    # 添加等差汇总统计的小节标题
     lines.append("### 汇总统计（等差）")
+    # 添加空行，增强排版可读性
     lines.append("")
+    # 获取等差网格的最低买入价格，若无买单则取价格点
     lowest_arithmetic_price = (
         arithmetic_result.buy_prices[0] if arithmetic_result.buy_prices else arithmetic_result.price_points[0]
     )
+    # 计算按最低价全仓买入时能够获得的基础资产数量
     potential_base_at_lowest_arithmetic = (
         (arithmetic_result.total_quote_amount / lowest_arithmetic_price) * (1.0 - arithmetic_result.fee_rate)
         if lowest_arithmetic_price > 0
         else 0.0
     )
+    # 计算实际购买量与最低价全仓购买量之间的差值
     arithmetic_base_diff = arithmetic_result.total_base_amount - potential_base_at_lowest_arithmetic
+    # 计算实际购买量相对于最低价全仓的比例
     arithmetic_base_ratio = (
         arithmetic_result.total_base_amount / potential_base_at_lowest_arithmetic * 100
         if potential_base_at_lowest_arithmetic > 0
         else 0.0
     )
+    # 添加总购买量说明，突出基础资产的持有量
     lines.append(f"- **总购买量**: {arithmetic_result.total_base_amount:,.8f} {base_asset}")
+    # 添加总投入资金说明，体现报价资产支出
     lines.append(f"- **总投入资金**: {arithmetic_result.total_quote_amount:,.2f} {quote_asset}")
+    # 添加平均价格说明，展示整体持仓成本
     lines.append(f"- **平均价格**: {arithmetic_result.average_price:,.4f} {quote_asset}/{base_asset}")
+    # 添加最低价全仓购买量说明，用于对比策略效果
     lines.append(f"- **最低价全仓购买量**: {potential_base_at_lowest_arithmetic:,.8f} {base_asset}")
+    # 添加与最低价全仓比较的说明，包含绝对值与百分比
     lines.append(
         f"- **与最低价全仓比较**: {arithmetic_base_diff:+,.8f} {base_asset}（实际为最低价全仓的 {arithmetic_base_ratio:,.2f}%）"
     )
+    # 添加平均单网格收益率说明，概述预期收益水平
     lines.append(f"- **平均单网格收益率**: {arithmetic_avg_return:,.2f}%")
+    # 添加空行，结束等差汇总统计小节
     lines.append("")
 
-    # 对比总结
+    # 添加对比总结的章节标题
     lines.append("## 对比总结")
+    # 添加空行，增强章节可读性
     lines.append("")
+    # 计算等比相对等差的购买量优势比例
     advantage_pct = (
         (geometric_result.total_base_amount - arithmetic_result.total_base_amount)
         / arithmetic_result.total_base_amount
         * 100
     )
 
+    # 添加购买量对比的小节标题
     lines.append("### 购买量对比")
+    # 添加空行，使段落层次分明
     lines.append("")
+    # 添加等比网格的总购买量说明
     lines.append(f"- **等比数列总购买量**: {geometric_result.total_base_amount:,.8f} {base_asset}")
+    # 添加等差网格的总购买量说明
     lines.append(f"- **等差数列总购买量**: {arithmetic_result.total_base_amount:,.8f} {base_asset}")
+    # 判断等比购买量优势是否为正数
     if advantage_pct > 0:
+        # 添加正向优势说明
         lines.append(f"- **等比数列优势**: +{advantage_pct:.2f}%")
     else:
+        # 添加差异说明，用于表示非正向结果
         lines.append(f"- **等比数列优势**: {advantage_pct:.2f}%")
+    # 添加空行，结束购买量对比小节
     lines.append("")
 
+    # 添加平均价格对比的小节标题
     lines.append("### 平均价格对比")
+    # 添加空行，突出结构层次
     lines.append("")
+    # 添加等比网格的平均价格说明
     lines.append(f"- **等比数列平均价格**: {geometric_result.average_price:,.4f} {quote_asset}/{base_asset}")
+    # 添加等差网格的平均价格说明
     lines.append(f"- **等差数列平均价格**: {arithmetic_result.average_price:,.4f} {quote_asset}/{base_asset}")
+    # 计算平均价格差异百分比
     price_diff_pct = (
         (arithmetic_result.average_price - geometric_result.average_price) / arithmetic_result.average_price * 100
     )
+    # 判断等比平均价格是否具有优势
     if price_diff_pct > 0:
+        # 添加等比平均价格优势说明
         lines.append(f"- **等比数列平均价格优势**: -{price_diff_pct:.2f}%（更低的价格意味着更好的买入成本）")
     else:
+        # 添加等比平均价格差异说明
         lines.append(f"- **等比数列平均价格差异**: {price_diff_pct:.2f}%")
+    # 添加空行，结束平均价格对比小节
     lines.append("")
 
-    # 平均收益率对比
+    # 添加平均收益率对比的小节标题
     lines.append("### 平均收益率对比")
+    # 添加空行，使布局更加清晰
     lines.append("")
+    # 添加等比网格的平均收益率说明
     lines.append(f"- **等比数列平均单网格收益率**: {geometric_avg_return:,.2f}%")
+    # 添加等差网格的平均收益率说明
     lines.append(f"- **等差数列平均单网格收益率**: {arithmetic_avg_return:,.2f}%")
+    # 计算平均收益率差异
     return_diff = geometric_avg_return - arithmetic_avg_return
+    # 判断收益率差异是否为正
     if return_diff > 0:
+        # 添加收益率优势说明
         lines.append(f"- **等比数列收益率优势**: +{return_diff:.2f}%")
     elif return_diff < 0:
+        # 添加收益率差异说明，用于表示不利情况
         lines.append(f"- **等比数列收益率差异**: {return_diff:.2f}%")
     else:
+        # 添加收益率相等的说明
         lines.append("- **两种网格的平均收益率相同**")
+    # 添加空行，结束平均收益率对比小节
     lines.append("")
 
-    # 返回 Markdown 字符串
+    # 返回拼接后的 Markdown 字符串结果
     return "\n".join(lines)
 
 
