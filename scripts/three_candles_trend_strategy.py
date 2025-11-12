@@ -315,13 +315,19 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
                 candle_lines,
             )
 
-            # 检查三连阳 (做多信号)
-            if self.check_three_bullish_candles(candles):
-                return 1
-
-            # 检查三连阴 (做空信号)
-            if self.check_three_bearish_candles(candles):
-                return -1
+            # 根据交易方向仅校验对应信号，避免打印不相关的判定日志
+            if self.config.trade_direction == "LONG":
+                if self.check_three_bullish_candles(candles):
+                    return 1
+            elif self.config.trade_direction == "SHORT":
+                if self.check_three_bearish_candles(candles):
+                    return -1
+            else:
+                # 兜底处理，若未来支持更多方向则保持原有判断逻辑
+                if self.check_three_bullish_candles(candles):
+                    return 1
+                if self.check_three_bearish_candles(candles):
+                    return -1
 
             return None
 
@@ -366,14 +372,15 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
         body_condition = all(body_flags)
         result = bullish_condition and body_condition and closes_increasing and opens_increasing
 
-        self.logger().info(
-            "三连阳判定结果: %s\n  阳线达标: %s\n  实体达标: %s\n  收盘递增: %s\n  开盘递增: %s",
-            result,
-            bullish_condition,
-            body_condition,
-            closes_increasing,
-            opens_increasing,
-        )
+        if self.config.trade_direction == "LONG":
+            self.logger().info(
+                "三连阳判定结果: %s\n  阳线达标: %s\n  实体达标: %s\n  收盘递增: %s\n  开盘递增: %s",
+                result,
+                bullish_condition,
+                body_condition,
+                closes_increasing,
+                opens_increasing,
+            )
 
         return result
 
@@ -414,14 +421,15 @@ class ThreeCandlesTrendStrategy(StrategyV2Base):
         body_condition = all(body_flags)
         result = bearish_condition and body_condition and closes_decreasing and opens_decreasing
 
-        self.logger().info(
-            "三连阴判定结果: %s\n  阴线达标: %s\n  实体达标: %s\n  收盘递减: %s\n  开盘递减: %s",
-            result,
-            bearish_condition,
-            body_condition,
-            closes_decreasing,
-            opens_decreasing,
-        )
+        if self.config.trade_direction == "SHORT":
+            self.logger().info(
+                "三连阴判定结果: %s\n  阴线达标: %s\n  实体达标: %s\n  收盘递减: %s\n  开盘递减: %s",
+                result,
+                bearish_condition,
+                body_condition,
+                closes_decreasing,
+                opens_decreasing,
+            )
 
         return result
 
