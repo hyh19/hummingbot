@@ -9,15 +9,15 @@ GROUP_RATIOS=(
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
-FEE_RATE="${FEE_RATE:-0.001}"
+FEE_RATE="${FEE_RATE:-0.0008}"
 
 COMMON_ARGS=(
   "--trading-pair" "BTC-USDT"
-  "--capital" "200000"
-  "--min-price" "50000"
-  "--max-price" "100000"
-  "--grids" "70"
-  "--groups" "7"
+  "--capital" "3500"
+  "--min-price" "97049.500136"
+  "--max-price" "102000.000000"
+  "--grids" "5"
+  "--groups" "1"
   "--fee-rate" "${FEE_RATE}"
 )
 
