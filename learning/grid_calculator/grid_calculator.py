@@ -22,7 +22,7 @@
 - num_groups：分组数量，必须整除网格数量，默认为 1。
 - group_ratio：相邻分组的资金公比，默认为 1。
 - fee_rate：买入与卖出共用的手续费率（小数表示），默认为 0.001。
-- output：输出文件路径，可选；未提供时会自动生成默认文件名。
+- output_dir：输出目录，可选；未指定时默认为脚本所在目录下的 output 子目录。
 
 输出内容
 ----
@@ -47,10 +47,10 @@
   python3 grid_calculator.py -p BTC-USDT -c 10000 -m 1000 -M 2000 -g 12 -G 4 -R 1.2
 - 修改手续费率：
   python3 grid_calculator.py -p ETH-USDT -c 5000 -m 2000 -M 3000 -g 8 -f 0.0005
-- 指定输出文件：
-  python3 grid_calculator.py -p BTC-USDT -c 10000 -m 1000 -M 2000 -g 10 -o result.md
+- 指定输出目录：
+  python3 grid_calculator.py -p BTC-USDT -c 10000 -m 1000 -M 2000 -g 10 --output-dir ./results
 
-若未指定 --output 参数，脚本会根据输入自动生成文件名（例如：btc_usdt_capital_10000_min_price_1000_max_price_2000_grids_10.md），并在终端提示保存路径。
+脚本会根据输入自动生成文件名（例如：btc_usdt_capital_10000_min_price_1000_max_price_2000_grids_10.md），并将其写入输出目录。若未指定 --output-dir，则默认为脚本所在目录下的 output 子目录。
 
 注意事项
 ----
@@ -68,8 +68,9 @@
 """
 
 import argparse
-from typing import List
+import os
 from dataclasses import dataclass
+from typing import List
 
 
 @dataclass
@@ -1147,16 +1148,15 @@ def main():
   python3 grid_calculator.py -p BTC-USDT -c 10000 -m 1000 -M 2000 -g 12 -G 4 -R 1.2
   - 网格按顺序拆分为 4 组，每组 3 个网格，并按照公比 1.2 分配资金。
 
-示例 3：自定义手续费率与输出文件
-  python3 grid_calculator.py -p ETH-USDT -c 5000 -m 2000 -M 3000 -g 8 -f 0.0005 -o eth_result.md
-  - 使用 0.05% 手续费率，并将结果保存到 eth_result.md。
+示例 3：自定义手续费率与输出目录
+  python3 grid_calculator.py -p ETH-USDT -c 5000 -m 2000 -M 3000 -g 8 -f 0.0005 --output-dir ./reports
+  - 使用 0.05% 手续费率，并将结果保存到 ./reports 目录下（若目录不存在会自动创建）。
 
 输出说明
 --------
 
 - 输出文件以 Markdown 形式包含输入摘要、两类网格明细、分组汇总以及整体对比。
-- 未显式指定 --output 时，会按照输入参数自动生成文件名并写入结果。
-- 运行结束后终端会打印实际写入的文件路径。
+- 运行结束后终端会打印实际写入的完整文件路径（文件名根据输入自动生成）。
         """,
     )
     # 注册交易对参数
@@ -1223,13 +1223,12 @@ def main():
         default=0.001,
         help="买入与卖出的统一手续费率（小数），默认 0.001 表示 0.1%%",
     )
-    # 注册输出文件路径参数
+    # 注册输出目录参数
     parser.add_argument(
-        "--output",
-        "-o",
+        "--output-dir",
         type=str,
         default=None,
-        help="输出文件路径（可选），如果未指定则根据命令行参数自动生成默认文件名（全小写+下划线格式）",
+        help="输出目录路径（可选），未指定时默认使用脚本所在目录下的 output 子目录",
     )
     # 解析命令行参数
     args = parser.parse_args()
@@ -1301,6 +1300,8 @@ def main():
     group_ratio = args.group_ratio if args.group_ratio is not None else 1.0
     # 计算各分组应分配的报价资产
     group_quote_shares = compute_group_quote_shares(args.capital, args.groups, group_ratio)
+    # 获取脚本所在目录，供默认输出目录使用
+    script_dir = os.path.dirname(os.path.abspath(__file__))
 
     # 计算等差网格结果
     arithmetic_result = calculate_arithmetic_grid(
@@ -1360,35 +1361,38 @@ def main():
         args.group_ratio,
     )
 
-    # 确定输出文件路径
-    if args.output:
-        # 使用用户指定的输出文件
-        output_file = args.output
-    else:
-        # 根据参数生成默认输出文件
-        output_file = generate_default_filename(
-            # 交易对
-            args.trading_pair,
-            # 资金总额
-            args.capital,
-            # 最低价格
-            args.min_price,
-            # 最高价格
-            args.max_price,
-            # 网格数量
-            args.grids,
-            # 分组数量
-            args.groups,
-            # 资金公比
-            group_ratio,
-        )
+    # 确定输出目录
+    output_dir = os.path.abspath(args.output_dir) if args.output_dir else os.path.join(script_dir, "output")
+    # 如果目录不存在则自动创建
+    os.makedirs(output_dir, exist_ok=True)
+
+    # 根据输入参数生成默认输出文件名
+    output_filename = generate_default_filename(
+        # 交易对
+        args.trading_pair,
+        # 资金总额
+        args.capital,
+        # 最低价格
+        args.min_price,
+        # 最高价格
+        args.max_price,
+        # 网格数量
+        args.grids,
+        # 分组数量
+        args.groups,
+        # 资金公比
+        group_ratio,
+    )
+
+    # 拼接最终输出路径
+    output_path = os.path.join(output_dir, output_filename)
 
     # 写入结果到 Markdown 文件
-    with open(output_file, "w", encoding="utf-8") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         # 输出格式化后的内容
         f.write(markdown_output)
     # 在控制台提示保存路径
-    print(f"结果已保存到文件: {output_file}")
+    print(f"结果已保存到文件: {output_path}")
 
 
 if __name__ == "__main__":
