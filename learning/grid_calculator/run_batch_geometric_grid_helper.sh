@@ -35,20 +35,13 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 # )
 
 CONFIG_SET_1=(
-  "--max-price" "200000"
-  "--grids" "70"
+  "--max-price" "96000"
+  "--grids" "5"
   "--grid-return-pct" "0.01"
-)
-
-CONFIG_SET_2=(
-  "--max-price" "200000"
-  "--grids" "35"
-  "--grid-return-pct" "0.02"
 )
 
 CONFIG_SETS=(
   "CONFIG_SET_1[@]"
-  "CONFIG_SET_2[@]"
 )
 
 separator_line="----------------------------------------"

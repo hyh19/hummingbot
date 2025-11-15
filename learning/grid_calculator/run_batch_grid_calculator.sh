@@ -9,29 +9,17 @@ FEE_RATE="${FEE_RATE:-0.0008}"
 # 如需新增配置，可复制下方数组并按需修改参数。
 CONFIG_SET_1=(
   "--trading-pair" "BTC-USDT"
-  "--capital" "50000"
-  "--min-price" "99662.971305"
-  "--max-price" "200000"
-  "--grids" "70"
-  "--groups" "14"
-  "--fee-rate" "${FEE_RATE}"
-  "--group-ratio" "1"
-)
-
-CONFIG_SET_2=(
-  "--trading-pair" "BTC-USDT"
-  "--capital" "50000"
-  "--min-price" "100005.52"
-  "--max-price" "200000"
-  "--grids" "35"
-  "--groups" "7"
+  "--capital" "3500"
+  "--min-price" "91340.706010"
+  "--max-price" "96000"
+  "--grids" "5"
+  "--groups" "1"
   "--fee-rate" "${FEE_RATE}"
   "--group-ratio" "1"
 )
 
 CONFIG_SETS=(
   "CONFIG_SET_1[@]"
-  "CONFIG_SET_2[@]"
 )
 
 for config_ref in "${CONFIG_SETS[@]}"; do
