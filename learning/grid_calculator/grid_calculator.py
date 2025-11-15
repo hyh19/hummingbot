@@ -593,7 +593,7 @@ def calculate_group_stats(grid_result: GridResult, num_groups: int) -> List[Grou
     return group_stats
 
 
-def generate_default_filename(
+def generate_output_filename(
     trading_pair: str,
     total_capital: float,
     min_price: float,
@@ -1367,7 +1367,7 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     # 根据输入参数生成默认输出文件名
-    output_filename = generate_default_filename(
+    output_filename = generate_output_filename(
         # 交易对
         args.trading_pair,
         # 资金总额
