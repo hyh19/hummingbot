@@ -565,12 +565,6 @@ def calculate_group_stats(grid_result: GridResult, num_groups: int) -> List[Grou
 
     # 遍历每个分组索引
     for group_idx in range(num_groups):
-        # 计算当前分组起始索引
-        start_idx = group_idx * grids_per_group
-
-        # 计算当前分组结束索引
-        end_idx = start_idx + grids_per_group
-
         # 获取当前分组的报价资金总额
         group_quote_amount = grid_result.group_quote_totals[group_idx]
 
