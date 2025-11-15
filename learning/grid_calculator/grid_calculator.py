@@ -771,9 +771,7 @@ def format_output(
         group_idx = 0
 
         # 遍历等比网格的买入价格数据
-        for i in range(len(geometric_result.buy_prices)):
-            # 获取当前层级的买入价格
-            price = geometric_result.buy_prices[i]
+        for i, price in enumerate(geometric_result.buy_prices):
             # 获取当前层级投入的报价资产
             quote = geometric_result.quote_amounts[i]
             # 获取当前层级买入的基础资产数量
@@ -809,9 +807,7 @@ def format_output(
                     lines.append("| | | | | | | | |")
     else:
         # 当未启用分组时直接输出所有网格数据
-        for i in range(len(geometric_result.buy_prices)):
-            # 获取当前层级的买入价格
-            price = geometric_result.buy_prices[i]
+        for i, price in enumerate(geometric_result.buy_prices):
             # 获取当前层级投入的报价资产
             quote = geometric_result.quote_amounts[i]
             # 获取当前层级买入的基础资产数量
@@ -937,9 +933,7 @@ def format_output(
         group_idx = 0
 
         # 遍历等差网格的买入数据
-        for i in range(len(arithmetic_result.buy_prices)):
-            # 获取当前层级的买入价格
-            price = arithmetic_result.buy_prices[i]
+        for i, price in enumerate(arithmetic_result.buy_prices):
             # 获取当前层级投入的报价资产
             quote = arithmetic_result.quote_amounts[i]
             # 获取当前层级买入的基础资产数量
@@ -975,9 +969,7 @@ def format_output(
                     lines.append("| | | | | | | | |")
     else:
         # 未启用分组时直接输出所有等差网格数据
-        for i in range(len(arithmetic_result.buy_prices)):
-            # 获取当前层级的买入价格
-            price = arithmetic_result.buy_prices[i]
+        for i, price in enumerate(arithmetic_result.buy_prices):
             # 获取当前层级投入的报价资产
             quote = arithmetic_result.quote_amounts[i]
             # 获取当前层级买入的基础资产数量
