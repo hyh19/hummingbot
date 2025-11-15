@@ -61,6 +61,12 @@ def _margin(raw: str) -> float:
 
 
 def parse_args() -> argparse.Namespace:
+    """
+    构造命令行解析器并返回解析后的参数。
+
+    Returns:
+        argparse.Namespace: 含所有命令行参数的命名空间。
+    """
     parser = argparse.ArgumentParser(
         description="计算质押借币时所需的基础资产数量",
         formatter_class=argparse.RawDescriptionHelpFormatter,
