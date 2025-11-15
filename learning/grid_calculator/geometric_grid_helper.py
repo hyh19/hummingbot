@@ -47,6 +47,8 @@ python3 geometric_grid_helper.py -M 28000 -g 8 -r 0.012
 - 若输入不满足条件（例如提供的参数数量不为三个或存在非正数），脚本会在终端输出错误信息并终止执行。
 """
 
+from __future__ import annotations
+
 import argparse
 import math
 import sys
