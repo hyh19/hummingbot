@@ -35,7 +35,7 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 # )
 
 CONFIG_SET_1=(
-  "--max-price" "96000"
+  "--max-price" "96960"
   "--grids" "5"
   "--grid-return-pct" "0.01"
 )
@@ -43,7 +43,7 @@ CONFIG_SET_1=(
 CONFIG_SETS=(
   "CONFIG_SET_1[@]"
 )
-
+# 91530.999148
 separator_line="----------------------------------------"
 first_run=true
 
